@@ -12,7 +12,18 @@
 - 2026-10-13: PWA production build: main chunk **311 KB gz** (budget 1500 KB); SW precache 1.6 MB, manifest + icons (derived from sword thumbnail).
 - Known fix worth remembering: `@colyseus/schema` v3 needs `experimentalDecorators: true` **and** `useDefineForClassFields: false`, else the patch encoder dies with `Symbol(Symbol.metadata)` undefined.
 
-### Next
+### Next — user-directed phase (2026-10-14)
+Requirements from the operator, in rough build order:
+1. **World redesign: one massive island surrounded by ocean** (ocean floor terrain, beaches; later more continents/islands) — rework `packages/content/world.ts` regions onto an island mask; mountains with real height, caves/dungeon entrances (instanced rooms — loading allowed there only).
+2. **Better lighting + graphics pass** (current lighting reads flat): warmer key, ambient occlusion-ish ground tint, sky gradient dome, tuned fog, denser/livelier forests (undergrowth scatter), grass tufts near camera.
+3. **Movement/collision**: fix buggy map movement (client prediction now mirrors server walkability — shipped), add prop collision (trees/rocks/buildings block movement), simple slope limits, minor physics feel (step smoothing).
+4. **Fishing skill + swimming & depth**: fishing spots in water, swim state in deeper water with slower speed + depth-based visuals.
+5. **Cities/villages**: Hearthmere becomes a real town (building generator), plus 2–3 villages; NPCs (banker, vendors, quest givers) with dialogue.
+6. **Monsters** (12 planned species) with combat loop; **quests** (10 teaching quests).
+7. **World map UI** (terrain heights, region names, player marker).
+8. **Character creation screen** on first signup (body/hair/tunic color presets on the modular body).
+
+### Previously queued
 - Phone test through the tunnel (two phones, 4G, measure fps on Pixel 6a / iPhone) — needs the human to open the URL.
 - Embedded wallet sign-in (blockle-wasm keygen/sign, passphrase-encrypted IndexedDB, challenge–response auth).
 - Replace flat-plane movement with baked navmesh (zone generator in assets/blender/zones + RecastJS).

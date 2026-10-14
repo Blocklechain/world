@@ -6,7 +6,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/loaders/glTF/2.0";
 import type { Room } from "colyseus.js";
 
-import { heightAt } from "@world/content";
+import { heightAt, isWalkable } from "@world/content";
 import { RUN_SPEED } from "@world/shared";
 
 interface PlayerLike {
@@ -112,9 +112,17 @@ export class PlayerRenderer {
         isMoving = dist > 0.05;
         if (isMoving) {
           const s = Math.min(step, dist);
-          pos.x += (dx / dist) * s;
-          pos.z += (dz / dist) * s;
-          av.root.rotation.y = Math.atan2(dx, dz) + HEADING_OFFSET;
+          const nx = pos.x + (dx / dist) * s;
+          const nz = pos.z + (dz / dist) * s;
+          if (isWalkable(nx, nz)) {
+            pos.x = nx;
+            pos.z = nz;
+            av.root.rotation.y = Math.atan2(dx, dz) + HEADING_OFFSET;
+          } else {
+            // mirror the server: stop at shores/cliffs instead of running in place
+            this.localTarget = null;
+            isMoving = false;
+          }
         }
         const err = Math.hypot(p.x - pos.x, p.z - pos.z);
         if (err > 1.5) {
