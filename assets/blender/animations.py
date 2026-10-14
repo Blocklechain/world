@@ -78,12 +78,13 @@ def _gait(rig, name, length, swing, arm_swing, knee, bob, lean, sway):
         _key(rig, f, "thigh.L", rot=(swing * s, 0, 0))
         _key(rig, f, "thigh.R", rot=(-swing * s, 0, 0))
         # knee bends hard during swing-through recovery (leg moving back->front),
-        # stays near-straight under load during stance
-        _key(rig, f, "shin.L", rot=(-knee * max(0.0, c) - 0.08, 0, 0))
-        _key(rig, f, "shin.R", rot=(-knee * max(0.0, -c) - 0.08, 0, 0))
+        # stays near-straight under load during stance. On a down-pointing bone,
+        # flexion (foot moving backward) is POSITIVE local-X rotation.
+        _key(rig, f, "shin.L", rot=(knee * max(0.0, -c) + 0.08, 0, 0))
+        _key(rig, f, "shin.R", rot=(knee * max(0.0, c) + 0.08, 0, 0))
         # heel strike (toes up) on the forward swing, toe tucks during recovery
-        _key(rig, f, "foot.L", rot=(0.45 * swing * s + 0.15 * knee * max(0.0, c), 0, 0))
-        _key(rig, f, "foot.R", rot=(-0.45 * swing * s + 0.15 * knee * max(0.0, -c), 0, 0))
+        _key(rig, f, "foot.L", rot=(0.45 * swing * s + 0.15 * knee * max(0.0, -c), 0, 0))
+        _key(rig, f, "foot.R", rot=(-0.45 * swing * s + 0.15 * knee * max(0.0, c), 0, 0))
 
         # pelvis: lateral sway toward the planted foot + yaw with the stride
         _key(rig, f, "hips", rot=(0, 0.5 * sway * s, 0.6 * sway * s), loc=(0.012 * s, 0, -bob * abs(c)))
