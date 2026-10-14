@@ -587,3 +587,60 @@ body {
   border: 2px solid #fff;
   box-shadow: 0 0 8px #5ac8ff;
 }
+
+/* ---- crafting & equipment ---- */
+.equipped {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  border: 1px solid #4a3f30;
+  border-radius: 8px;
+  background: #1b1712;
+  font-size: 13px;
+}
+.equipped .nm { flex: 1; }
+.equipped button {
+  padding: 4px 9px;
+  border-radius: 6px;
+  border: 1px solid #4a3f30;
+  background: #241f19;
+  color: #eee;
+  font-size: 12px;
+}
+.craftbtn {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  transform: translateX(-50%);
+  padding: 11px 18px;
+  border-radius: 999px;
+  border: 1px solid #e8c33a;
+  background: rgba(40, 34, 24, 0.92);
+  color: #ffe08a;
+  font-size: 14px;
+  font-weight: 700;
+  pointer-events: auto;
+}
+.craft { left: 50%; right: auto; transform: translate(-50%, -50%); width: min(92vw, 340px); }
+.recipe {
+  border-bottom: 1px solid #241f19;
+  padding: 8px 0;
+}
+.recipe .rhead { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+.recipe .rhead b { flex: 1; color: #d8cdb8; font-weight: 600; }
+.recipe .rhead em { font-style: normal; font-size: 11px; color: #8a7d68; }
+.recipe .rmats { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 6px 19px; font-size: 11.5px; }
+.recipe .rmats .ok { color: #9fd08a; }
+.recipe .rmats .no { color: #c96a5a; }
+.recipe button {
+  margin-left: 19px;
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid #4a3f30;
+  background: #3a3227;
+  color: #ffe08a;
+  font-size: 12.5px;
+}
+.recipe button:disabled { opacity: 0.4; }

@@ -8,7 +8,13 @@ import type { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/loaders/glTF/2.0";
 import type { Room } from "colyseus.js";
 
-import { WATER_LEVEL, decodeLook, heightAt, isWalkable, resolveMove, slopeSpeedMult, type Appearance } from "@world/content";
+import { ITEMS, WATER_LEVEL, decodeLook, heightAt, isWalkable, resolveMove, slopeSpeedMult, type Appearance } from "@world/content";
+
+const WEAPON_MODELS: Record<string, string> = Object.fromEntries(
+  Object.values(ITEMS)
+    .filter((i) => i.equip)
+    .map((i) => [i.id, i.equip!.model]),
+);
 import { RUN_SPEED } from "@world/shared";
 
 interface PlayerLike {
@@ -19,6 +25,7 @@ interface PlayerLike {
   name: string;
   action: string;
   look: string;
+  weapon: string;
 }
 
 /** Yaw offset between the GLB's authored forward and world heading 0. */
@@ -41,6 +48,22 @@ export class CharacterLibrary {
     return p;
   }
 
+  private gearCache = new Map<string, Promise<AssetContainer>>();
+
+  async gear(model: string): Promise<Mesh | null> {
+    let p = this.gearCache.get(model);
+    if (!p) {
+      p = SceneLoader.LoadAssetContainerAsync("/assets/gear/", `${model}.glb`, this.scene);
+      this.gearCache.set(model, p);
+    }
+    const c = await p.catch(() => null);
+    const src = c?.meshes.find((m) => m.getTotalVertices() > 0) as Mesh | undefined;
+    if (!src) return null;
+    const clone = src.clone(`${model}:inst`, null)!;
+    clone.setEnabled(true);
+    return clone;
+  }
+
   async attachment(name: string): Promise<Mesh | null> {
     this.hair ??= SceneLoader.LoadAssetContainerAsync("/assets/characters/", "hair.glb", this.scene);
     const c = await this.hair;
@@ -58,6 +81,10 @@ export class PlayerAvatar {
   private clips = new Map<string, AnimationGroup>();
   private current: AnimationGroup | null = null;
   private disposed = false;
+  private lib2: CharacterLibrary;
+  private handNode: TransformNode | null = null;
+  private weaponMesh: Mesh | null = null;
+  private weaponId = "";
 
   constructor(
     private scene: Scene,
@@ -67,6 +94,7 @@ export class PlayerAvatar {
     onMeshes?: (root: TransformNode) => void,
   ) {
     this.root = new TransformNode(`player:${id}`, scene);
+    this.lib2 = lib;
     void this.init(lib, look, id, onMeshes);
   }
 
@@ -85,6 +113,7 @@ export class PlayerAvatar {
     const skeleton = entries.skeletons[0];
     const headBone = skeleton?.bones.find((b: Bone) => b.name === "head");
     const headNode = headBone?.getTransformNode();
+    this.handNode = skeleton?.bones.find((b: Bone) => b.name === "socket.hand_r")?.getTransformNode() ?? null;
     if (headNode) {
       const scale = look.race === "dwarf" ? 1.12 : look.race === "elf" ? 0.94 : 1;
       const mount = async (name: string, yOff: number) => {
@@ -104,6 +133,26 @@ export class PlayerAvatar {
     this.loaded = true;
     this.play("idle");
     onMeshes?.(this.root);
+  }
+
+  setWeapon(itemId: string) {
+    if (itemId === this.weaponId) return;
+    this.weaponId = itemId;
+    this.weaponMesh?.dispose();
+    this.weaponMesh = null;
+    const model = itemId ? WEAPON_MODELS[itemId] : undefined;
+    if (!model || !this.handNode) return;
+    void this.lib2.gear(model).then((mesh) => {
+      if (!mesh) return;
+      if (this.disposed || this.weaponId !== itemId) {
+        mesh.dispose();
+        return;
+      }
+      mesh.parent = this.handNode;
+      mesh.position.set(0, 0.04, 0);
+      mesh.rotation.set(Math.PI / 2, 0, 0); // grip axis -> along the hand bone
+      this.weaponMesh = mesh;
+    });
   }
 
   play(name: string, speedRatio = 1) {
@@ -209,6 +258,7 @@ export class PlayerRenderer {
         if (p.moving) av.root.rotation.y = p.heading + HEADING_OFFSET;
       }
 
+      av.setWeapon(p.weapon ?? "");
       const action = p.action === "swim" ? "swim" : isMoving ? "run" : p.action || "idle";
       av.play(action, action === "run" ? 1.35 : 1);
     });

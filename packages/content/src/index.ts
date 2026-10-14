@@ -9,3 +9,4 @@ export * from "./spawns.js";
 export * from "./unlocks.js";
 export * from "./towns.js";
 export * from "./collision.js";
+export * from "./crafting.js";

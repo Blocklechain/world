@@ -73,6 +73,10 @@ export interface Net {
   questAccept(questId: string): void;
   questComplete(questId: string): void;
   onNpc(cb: (npc: NpcPayload) => void): void;
+  craft(recipeId: string): void;
+  equip(slot: number): void;
+  unequip(): void;
+  eat(slot: number): void;
   dropSlot(slot: number): void;
   bankOpen(): void;
   bankDeposit(slot: number, all?: boolean): void;
@@ -150,6 +154,10 @@ export async function connect(name: string, token: string | null): Promise<Net> 
     questAccept: (questId) => room.send("quest:accept", { questId }),
     questComplete: (questId) => room.send("quest:complete", { questId }),
     onNpc: (cb) => npcCbs.push(cb),
+    craft: (recipeId) => room.send("craft", { recipeId }),
+    equip: (slot) => room.send("equip", { slot }),
+    unequip: () => room.send("unequip"),
+    eat: (slot) => room.send("eat", { slot }),
     dropSlot: (slot) => room.send(MSG.invDrop, { slot }),
     bankOpen: () => room.send(MSG.bankOpen),
     bankDeposit: (slot, all) => room.send(MSG.bankDeposit, { slot, all }),

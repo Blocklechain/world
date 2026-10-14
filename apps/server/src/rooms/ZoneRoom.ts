@@ -11,6 +11,9 @@ import {
   SWIM_SPEED_MULT,
   NPCS,
   QUESTS,
+  RECIPES,
+  STATIONS,
+  weaponBonus,
   allMonsterSpawns,
   allNodes,
   encodeLook,
@@ -58,6 +61,8 @@ export class PlayerState extends Schema {
   @type("string") action = "idle";
   /** race:sex:hair:hairColor:beard */
   @type("string") look = "";
+  /** equipped weapon itemId ("" = none) */
+  @type("string") weapon = "";
   @type("int16") hp = 30;
   @type("int16") maxHp = 30;
 }
@@ -238,6 +243,99 @@ export class ZoneRoom extends Room<ZoneState> {
       this.broadcast(EVT.system, { text: `${p.name} completed "${q.name}"!` });
     });
 
+    this.onMessage("craft", (client, msg: { recipeId?: string }) => {
+      const p = this.state.players.get(client.sessionId);
+      const s = this.sessions.get(client.sessionId);
+      const r = RECIPES[String(msg?.recipeId ?? "")];
+      if (!p || !s || !r) return;
+      const station = STATIONS.find(
+        (st) => st.kind === r.station && Math.hypot(p.x - st.x, p.z - st.z) <= st.radius,
+      );
+      if (!station) {
+        client.send("msg", { text: "You need to stand at the right station." });
+        return;
+      }
+      const prof = s.profile;
+      const level = levelForXp(prof.skills[r.skill]);
+      if (level < r.level) {
+        client.send("msg", { text: `You need ${r.skill} level ${r.level}.` });
+        return;
+      }
+      for (const [item, count] of Object.entries(r.inputs)) {
+        if (prof.inv.filter((i) => i === item).length < count) {
+          client.send("msg", { text: `You are missing ${ITEMS[item]?.name ?? item}.` });
+          return;
+        }
+      }
+      for (const [item, count] of Object.entries(r.inputs)) {
+        let left = count;
+        for (let i = 0; i < prof.inv.length && left > 0; i++) {
+          if (prof.inv[i] === item) {
+            prof.inv[i] = null;
+            left--;
+          }
+        }
+      }
+      const slot = freeSlot(prof);
+      if (slot >= 0) prof.inv[slot] = r.output;
+      touchProfile(prof.address);
+      this.grantXp(client.sessionId, r.skill, r.xp);
+      client.send("inv", { inv: prof.inv });
+      client.send("msg", { text: `You make: ${ITEMS[r.output]?.name ?? r.output}.` });
+    });
+
+    this.onMessage("equip", (client, msg: { slot?: number }) => {
+      const p = this.state.players.get(client.sessionId);
+      const s = this.sessions.get(client.sessionId);
+      const slot = Number(msg?.slot);
+      if (!p || !s || !Number.isInteger(slot) || slot < 0 || slot >= s.profile.inv.length) return;
+      const prof = s.profile;
+      const itemId = prof.inv[slot];
+      const def = itemId ? ITEMS[itemId] : undefined;
+      if (!itemId || !def?.equip) return;
+      prof.inv[slot] = prof.equipment.weapon; // swap (may be null)
+      prof.equipment.weapon = itemId;
+      p.weapon = itemId;
+      touchProfile(prof.address);
+      client.send("inv", { inv: prof.inv });
+      client.send("msg", { text: `Wielding the ${def.name}.` });
+    });
+
+    this.onMessage("unequip", (client) => {
+      const p = this.state.players.get(client.sessionId);
+      const s = this.sessions.get(client.sessionId);
+      if (!p || !s || !s.profile.equipment.weapon) return;
+      const slot = freeSlot(s.profile);
+      if (slot < 0) {
+        client.send("msg", { text: "Your pack is full." });
+        return;
+      }
+      s.profile.inv[slot] = s.profile.equipment.weapon;
+      s.profile.equipment.weapon = null;
+      p.weapon = "";
+      touchProfile(s.profile.address);
+      client.send("inv", { inv: s.profile.inv });
+    });
+
+    this.onMessage("eat", (client, msg: { slot?: number }) => {
+      const p = this.state.players.get(client.sessionId);
+      const s = this.sessions.get(client.sessionId);
+      const slot = Number(msg?.slot);
+      if (!p || !s || !Number.isInteger(slot) || slot < 0 || slot >= s.profile.inv.length) return;
+      const itemId = s.profile.inv[slot];
+      const def = itemId ? ITEMS[itemId] : undefined;
+      if (!itemId || !def?.heal) return;
+      if (p.hp >= p.maxHp) {
+        client.send("msg", { text: "You are already at full health." });
+        return;
+      }
+      s.profile.inv[slot] = null;
+      p.hp = Math.min(p.maxHp, p.hp + def.heal);
+      touchProfile(s.profile.address);
+      client.send("inv", { inv: s.profile.inv });
+      client.send("msg", { text: `The ${def.name} restores ${def.heal} health.` });
+    });
+
     this.onMessage("inv:drop", (client, msg: { slot?: number }) => {
       const s = this.sessions.get(client.sessionId);
       const slot = Number(msg?.slot);
@@ -330,6 +428,7 @@ export class ZoneRoom extends Room<ZoneState> {
     const p = new PlayerState();
     p.name = name;
     p.look = encodeLook(account?.appearance ?? randomLook(address));
+    p.weapon = profile.equipment.weapon ?? "";
     p.maxHp = maxHpForDefence(levelForXp(profile.skills.defence));
     p.hp = p.maxHp;
     p.x = profile.pos?.x ?? SPAWN.x + (Math.random() - 0.5) * 8;
@@ -580,7 +679,9 @@ export class ZoneRoom extends Room<ZoneState> {
     const monsterId = s.targetMonster!;
     const hit = Math.random() < hitChance(level + 8, sp.defence);
     const { min, max } = playerDamage(level);
-    const dmg = hit ? rollDamage(min, max) : 0;
+    const wDef = s.profile.equipment.weapon ? ITEMS[s.profile.equipment.weapon] : undefined;
+    const bonus = s.style === "melee" && wDef?.equip ? weaponBonus(wDef.equip.tier) : 0;
+    const dmg = hit ? rollDamage(min, Math.floor(max + bonus)) : 0;
     this.broadcast("fx", { kind: "attack", style: s.style, sid: sessionId, monsterId, dmg });
     if (!hit) return;
     m.hp = Math.max(0, m.hp - dmg);

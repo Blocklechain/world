@@ -15,7 +15,7 @@ import {
   xpForLevel,
   type Appearance,
 } from "@world/content";
-import { QUESTS, WORLD_H, WORLD_W, TOWNS } from "@world/content";
+import { QUESTS, RECIPES, STATIONS, WORLD_H, WORLD_W, TOWNS, type Station } from "@world/content";
 import {
   apiAppearance,
   apiLogin,
@@ -203,13 +203,21 @@ const STYLE_ICONS = { melee: "⚔️", archery: "🏹", magic: "✨" } as const;
 function Hud({ net, status, combat }: { net: Net; status: string; combat: CombatRef }) {
   const [style, setStyle] = useState(combat.style);
   const [hp, setHp] = useState<{ hp: number; max: number } | null>(null);
+  const [weapon, setWeapon] = useState("");
+  const [station, setStation] = useState<Station | null>(null);
 
   useEffect(() => {
     const iv = setInterval(() => {
-      const self = (net.room.state as { players?: Map<string, { hp: number; maxHp: number }> }).players?.get(
-        net.sessionId,
-      );
-      if (self) setHp((prev) => (prev?.hp === self.hp && prev?.max === self.maxHp ? prev : { hp: self.hp, max: self.maxHp }));
+      const self = (
+        net.room.state as {
+          players?: Map<string, { hp: number; maxHp: number; weapon: string; x: number; z: number }>;
+        }
+      ).players?.get(net.sessionId);
+      if (!self) return;
+      setHp((prev) => (prev?.hp === self.hp && prev?.max === self.maxHp ? prev : { hp: self.hp, max: self.maxHp }));
+      setWeapon(self.weapon ?? "");
+      const st = STATIONS.find((st) => Math.hypot(self.x - st.x, self.z - st.z) <= st.radius) ?? null;
+      setStation((prev) => (prev?.id === st?.id ? prev : st));
     }, 300);
     return () => clearInterval(iv);
   }, [net]);
@@ -219,6 +227,8 @@ function Hud({ net, status, combat }: { net: Net; status: string; combat: Combat
       net={net}
       status={status}
       hp={hp}
+      weapon={weapon}
+      station={station}
       style={style}
       setStyle={(s) => {
         combat.style = s;
@@ -232,15 +242,20 @@ function HudInner({
   net,
   status,
   hp,
+  weapon,
+  station,
   style,
   setStyle,
 }: {
   net: Net;
   status: string;
   hp: { hp: number; max: number } | null;
+  weapon: string;
+  station: Station | null;
   style: CombatRef["style"];
   setStyle: (s: CombatRef["style"]) => void;
 }) {
+  const [craftOpen, setCraftOpen] = useState(false);
   const [, bump] = useState(0);
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [draft, setDraft] = useState("");
@@ -409,6 +424,13 @@ function HudInner({
       {panel === "inv" && (
         <div class="panelbox inv">
           <h3>Pack</h3>
+          {weapon && (
+            <div class="equipped">
+              <span class="tintdot" style={{ background: ITEMS[weapon]?.tint }} />
+              <span class="nm">{ITEMS[weapon]?.name}</span>
+              <button onClick={() => net.unequip()}>Unequip</button>
+            </div>
+          )}
           <div class="grid">
             {g.inv.map((id, slot) => (
               <div
@@ -419,13 +441,17 @@ function HudInner({
                 onClick={() => {
                   if (!id) return;
                   if (g.bankOpen) net.bankDeposit(slot, true);
+                  else if (ITEMS[id]?.heal) net.eat(slot);
+                  else if (ITEMS[id]?.equip) net.equip(slot);
                 }}
               >
                 {id ? abbrev(ITEMS[id]?.name ?? id) : ""}
               </div>
             ))}
           </div>
-          {g.bankOpen && <p class="hint">Tap an item to bank all of that kind.</p>}
+          <p class="hint">
+            {g.bankOpen ? "Tap an item to bank all of that kind." : "Tap food to eat it, weapons to wield them."}
+          </p>
         </div>
       )}
 
@@ -492,6 +518,51 @@ function HudInner({
             ))}
           </div>
           <p class="hint">Open your pack to deposit. Walk away to close.</p>
+        </div>
+      )}
+
+      {station && !craftOpen && (
+        <button class="craftbtn" onClick={() => setCraftOpen(true)}>
+          🔨 {station.name}
+        </button>
+      )}
+      {station && craftOpen && (
+        <div class="panelbox craft">
+          <h3>
+            <button class="back" onClick={() => setCraftOpen(false)}>
+              ←
+            </button>
+            {station.name}
+          </h3>
+          {Object.values(RECIPES)
+            .filter((r) => r.station === station.kind)
+            .map((r) => {
+              const have = (item: string) => g.inv.filter((i) => i === item).length;
+              const lvl = g.skills ? levelForXp(g.skills[r.skill]) : 1;
+              const canLevel = lvl >= r.level;
+              const canMats = Object.entries(r.inputs).every(([it, n]) => have(it) >= n);
+              return (
+                <div key={r.id} class="recipe">
+                  <div class="rhead">
+                    <span class="tintdot" style={{ background: ITEMS[r.output]?.tint }} />
+                    <b>{ITEMS[r.output]?.name}</b>
+                    <em>
+                      {r.skill} {r.level}
+                    </em>
+                  </div>
+                  <div class="rmats">
+                    {Object.entries(r.inputs).map(([it, n]) => (
+                      <span key={it} class={have(it) >= n ? "ok" : "no"}>
+                        {ITEMS[it]?.name} {have(it)}/{n}
+                      </span>
+                    ))}
+                  </div>
+                  <button disabled={!canLevel || !canMats} onClick={() => net.craft(r.id)}>
+                    {r.verb}
+                  </button>
+                </div>
+              );
+            })}
         </div>
       )}
 
