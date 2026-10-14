@@ -14,8 +14,10 @@ import {
   RECIPES,
   STATIONS,
   weaponBonus,
-  allMonsterSpawns,
-  allNodes,
+  MAPS,
+  PORTALS,
+  SCATTER_CHUNK,
+  type GameMap,
   encodeLook,
   gatherChance,
   hitChance,
@@ -107,10 +109,12 @@ const BANK_POS = { x: SPAWN.x + 10, z: SPAWN.z - 6, radius: 5 };
 const MONSTER_MELEE = 1.7;
 const LEASH = 32;
 
-/** The seamless overworld. Caves/dungeons get their own room types later. */
+/** A playable map instance: the seamless overworld or an interior. */
 export class ZoneRoom extends Room<ZoneState> {
   maxClients = ZONE_SHARD_CAP;
-  nodes: Map<string, WorldNode> = allNodes();
+  mapId = "overworld";
+  map!: GameMap;
+  nodes!: Map<string, WorldNode>;
   sessions = new Map<string, Session>();
   mruntime = new Map<string, MonsterRuntime>();
 
@@ -120,10 +124,17 @@ export class ZoneRoom extends Room<ZoneState> {
   }
 
   onCreate() {
+    this.map = MAPS[this.mapId]!;
+    this.nodes = new Map();
+    for (let cx = 0; cx * SCATTER_CHUNK < this.map.width; cx++) {
+      for (let cz = 0; cz * SCATTER_CHUNK < this.map.height; cz++) {
+        for (const n of this.map.chunkNodes(cx, cz)) this.nodes.set(n.id, n);
+      }
+    }
     this.setState(new ZoneState());
     this.setPatchRate(TICK_MS);
 
-    const spawns = allMonsterSpawns();
+    const spawns = this.map.monsterSpawns();
     for (const [id, s] of spawns) {
       const sp = MONSTERS[s.species]!;
       const m = new MonsterState();
@@ -135,13 +146,13 @@ export class ZoneRoom extends Room<ZoneState> {
       this.state.monsters.set(id, m);
       this.mruntime.set(id, { spawn: s, respawnAt: 0, targetSid: null, nextAttackAt: 0, nextScanAt: 0 });
     }
-    console.log(`[world] overworld up — ${this.nodes.size} nodes, ${spawns.size} monsters`);
+    console.log(`[world] ${this.map.name} up — ${this.nodes.size} nodes, ${spawns.size} monsters`);
 
     this.onMessage(MSG.move, (client, msg: MoveMsg) => {
       const p = this.state.players.get(client.sessionId);
       const s = this.sessions.get(client.sessionId);
       if (!p || !s || typeof msg?.x !== "number" || typeof msg?.z !== "number") return;
-      if (!isWalkable(msg.x, msg.z)) return;
+      if (!this.map.isWalkable(msg.x, msg.z)) return;
       this.stopGathering(client.sessionId, p);
       s.targetMonster = null;
       p.tx = msg.x;
@@ -408,7 +419,7 @@ export class ZoneRoom extends Room<ZoneState> {
     this.setSimulationInterval((dt) => this.tick(dt), TICK_MS);
   }
 
-  onJoin(client: Client, options: { name?: string }) {
+  onJoin(client: Client, options: { name?: string; fromMap?: string }) {
     const address = (client.auth as { address?: string })?.address ?? `guest:${client.sessionId}`;
     const account = address.startsWith("guest:") ? null : accountByAddress(address);
     const name =
@@ -431,15 +442,23 @@ export class ZoneRoom extends Room<ZoneState> {
     p.weapon = profile.equipment.weapon ?? "";
     p.maxHp = maxHpForDefence(levelForXp(profile.skills.defence));
     p.hp = p.maxHp;
-    p.x = profile.pos?.x ?? SPAWN.x + (Math.random() - 0.5) * 8;
-    p.z = profile.pos?.z ?? SPAWN.z + (Math.random() - 0.5) * 8;
-    if (!isWalkable(p.x, p.z)) {
-      p.x = SPAWN.x;
-      p.z = SPAWN.z;
+    // arriving through a portal lands you at its mouth on this side
+    const arrival =
+      typeof options?.fromMap === "string"
+        ? PORTALS.find((pt) => pt.map === this.map.id && pt.toMap === options.fromMap)
+        : null;
+    const saved = profile.pos && profile.pos.map === this.map.id ? profile.pos : null;
+    p.x = arrival ? arrival.x + 2.5 : saved?.x ?? this.map.spawn.x + (Math.random() - 0.5) * 6;
+    p.z = arrival ? arrival.z + 2.5 : saved?.z ?? this.map.spawn.z + (Math.random() - 0.5) * 6;
+    if (!this.map.isWalkable(p.x, p.z)) {
+      p.x = this.map.spawn.x;
+      p.z = this.map.spawn.z;
     }
-    const safe = resolveMove(p.x, p.z);
-    p.x = safe.x;
-    p.z = safe.z;
+    if (this.map.id === "overworld") {
+      const safe = resolveMove(p.x, p.z);
+      p.x = safe.x;
+      p.z = safe.z;
+    }
     p.tx = p.x;
     p.tz = p.z;
     this.state.players.set(client.sessionId, p);
@@ -453,7 +472,7 @@ export class ZoneRoom extends Room<ZoneState> {
     const p = this.state.players.get(client.sessionId);
     const s = this.sessions.get(client.sessionId);
     if (p && s) {
-      s.profile.pos = { x: p.x, z: p.z };
+      s.profile.pos = { map: this.map.id, x: p.x, z: p.z };
       touchProfile(s.profile.address);
       this.broadcast(EVT.system, { text: `${p.name} has left.` });
     }
@@ -538,7 +557,7 @@ export class ZoneRoom extends Room<ZoneState> {
     this.state.players.forEach((p, sessionId) => {
       const s = this.sessions.get(sessionId);
       if (!s) return;
-      const swimming = moveStateAt(p.x, p.z) === "swim";
+      const swimming = this.map.moveStateAt(p.x, p.z) === "swim";
       const step = ((swimming ? RUN_SPEED * SWIM_SPEED_MULT : RUN_SPEED) * dtMs) / 1000;
 
       // combat steering: keep walking toward the (moving) target
@@ -575,8 +594,8 @@ export class ZoneRoom extends Room<ZoneState> {
           const ux = dx / dist;
           const uz = dz / dist;
           const stepMod = step * (swimming ? 1 : slopeSpeedMult(p.x, p.z, ux, uz));
-          const slid = resolveMove(p.x + ux * stepMod, p.z + uz * stepMod);
-          if (isWalkable(slid.x, slid.z)) {
+          const slid = this.map.id === "overworld" ? resolveMove(p.x + ux * stepMod, p.z + uz * stepMod) : { x: p.x + ux * stepMod, z: p.z + uz * stepMod };
+          if (this.map.isWalkable(slid.x, slid.z)) {
             // if sliding got us nowhere (wedged on a prop), stop
             if (Math.hypot(slid.x - p.x, slid.z - p.z) < stepMod * 0.15) {
               p.moving = false;
@@ -786,7 +805,7 @@ export class ZoneRoom extends Room<ZoneState> {
         const dist = Math.hypot(dx, dz) || 1;
         const nx = m.x + (dx / dist) * Math.min(step, dist);
         const nz = m.z + (dz / dist) * Math.min(step, dist);
-        if (isWalkable(nx, nz)) {
+        if (this.map.isWalkable(nx, nz)) {
           m.x = nx;
           m.z = nz;
           m.heading = Math.atan2(dx, dz);
@@ -816,9 +835,9 @@ export class ZoneRoom extends Room<ZoneState> {
   private playerDeath(sid: string, p: PlayerState, killer: string) {
     const client = this.clients.find((c) => c.sessionId === sid);
     this.broadcast(EVT.system, { text: `${p.name} was slain by a ${killer}.` });
-    client?.send("msg", { text: "You black out… and wake at the Hearthmere hearth." });
-    p.x = SPAWN.x + (Math.random() - 0.5) * 4;
-    p.z = SPAWN.z + (Math.random() - 0.5) * 4;
+    client?.send("msg", { text: "You black out… and wake somewhere safe." });
+    p.x = this.map.spawn.x + (Math.random() - 0.5) * 4;
+    p.z = this.map.spawn.z + (Math.random() - 0.5) * 4;
     p.tx = p.x;
     p.tz = p.z;
     p.moving = false;

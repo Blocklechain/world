@@ -191,9 +191,35 @@ def troll(seed=39):
     return o
 
 
+def cave_bat(seed=40):
+    r = common.rng(seed, "bat")
+    bm = bmesh.new()
+    z = 1.5  # hovers
+    bf = _blob(bm, (0, 0, z), 0.22, 0.8, r)
+    common.paint_faces(bm, bf, "grip", 0.3)
+    hf = _blob(bm, (0, -0.2, z + 0.05), 0.13, 0.9, r)
+    common.paint_faces(bm, hf, "grip", 0.38)
+    for sx in (-1, 1):
+        ef = _tube(bm, (sx * 0.05, -0.22, z + 0.14), (sx * 0.1, -0.2, z + 0.26), 0.03, 0.004, n=4)
+        common.paint_faces(bm, ef, "grip", 0.3)
+    # membrane wings: two big thin fans
+    for sx in (-1, 1):
+        a = bm.verts.new((sx * 0.15, 0, z))
+        b = bm.verts.new((sx * 0.95, 0.15, z + 0.3))
+        c = bm.verts.new((sx * 0.75, 0.35, z + 0.05))
+        d = bm.verts.new((sx * 0.45, 0.2, z - 0.05))
+        f1 = bm.faces.new((a, b, c))
+        f2 = bm.faces.new((a, c, d))
+        common.paint_faces(bm, [f1, f2], "runic", 0.25)
+    for sx in (-1, 1):
+        ey = common.add_box(bm, (sx * 0.05, -0.31, z + 0.07), (0.03, 0.02, 0.025))
+        common.paint_faces(bm, ey, "copper", 0.9)
+    return _finish("cave_bat", bm)
+
+
 ALL = {
     "vermin": vermin, "wolf": wolf, "goblin": goblin, "goblin_brute": goblin_brute,
-    "bandit": bandit, "skeleton": skeleton, "acolyte": acolyte, "spider": spider, "troll": troll,
+    "bandit": bandit, "skeleton": skeleton, "cave_bat": cave_bat, "acolyte": acolyte, "spider": spider, "troll": troll,
 }
 
 

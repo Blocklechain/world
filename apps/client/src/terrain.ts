@@ -11,7 +11,7 @@ import { MixMaterial } from "@babylonjs/materials/mix";
 
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
 
-import { WATER_LEVEL, groundWeights, heightAt, sandAt } from "@world/content";
+import { WATER_LEVEL, activeMap, mapGroundWeights, mapHeightAt, mapSandAt } from "@world/content";
 
 export const CHUNK = 64;
 const VERTS = 33; // 2m grid
@@ -56,6 +56,7 @@ export class TerrainManager {
     this.water.hasVertexAlpha = false;
     this.water.position.y = WATER_LEVEL;
     this.water.isPickable = false;
+    if (activeMap().kind === "cave") this.water.setEnabled(false);
     scene.onBeforeRenderObservable.add(() => this.animateWater());
   }
 
@@ -86,7 +87,7 @@ export class TerrainManager {
     const shallow = [0.35, 0.72, 0.72];
     const deep = [0.07, 0.2, 0.34];
     for (let i = 0, c = 0; i < pos.length; i += 3, c += 4) {
-      const depth = Math.min(1, Math.max(0, (WATER_LEVEL - heightAt(pos[i]! + wx, pos[i + 2]! + wz)) / 5));
+      const depth = Math.min(1, Math.max(0, (WATER_LEVEL - mapHeightAt(pos[i]! + wx, pos[i + 2]! + wz)) / 5));
       const k = Math.sqrt(depth);
       colors[c] = shallow[0]! + (deep[0]! - shallow[0]!) * k;
       colors[c + 1] = shallow[1]! + (deep[1]! - shallow[1]!) * k;
@@ -140,7 +141,7 @@ export class TerrainManager {
         const z = z0 + j * step;
         const k = j * VERTS + i;
         positions[k * 3] = x;
-        positions[k * 3 + 1] = heightAt(x, z);
+        positions[k * 3 + 1] = mapHeightAt(x, z);
         positions[k * 3 + 2] = z;
         // chunk-local 0..1 — the mix map spans it; diffuse tiling rides on top
         uvs[k * 2] = i / (VERTS - 1);
@@ -171,7 +172,7 @@ export class TerrainManager {
       for (let i = 0; i < MIX_RES; i++) {
         const x = x0 + (i / (MIX_RES - 1)) * CHUNK;
         const z = z0 + (j / (MIX_RES - 1)) * CHUNK;
-        const [g, d, r, m] = groundWeights(x, z);
+        const [g, d, r, m] = mapGroundWeights(x, z);
         const k = (j * MIX_RES + i) * 4;
         mix[k] = 255; // layer-1 brightness
         mix[k + 1] = (d / Math.max(0.001, g + d)) * 255;
@@ -188,7 +189,7 @@ export class TerrainManager {
         const x = x0 + (i / (MIX_RES - 1)) * CHUNK;
         const z = z0 + (j / (MIX_RES - 1)) * CHUNK;
         const k = (j * MIX_RES + i) * 4;
-        mix2[k] = sandAt(x, z) * 255;
+        mix2[k] = mapSandAt(x, z) * 255;
         mix2[k + 3] = 255; // keep layer-8 (1-a) silent
       }
     }

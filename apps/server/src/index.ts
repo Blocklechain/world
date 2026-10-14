@@ -10,6 +10,7 @@ import Fastify from "fastify";
 
 import * as accounts from "./accounts.js";
 import * as auth from "./auth.js";
+import { CaveRoom } from "./rooms/CaveRoom.js";
 import { ZoneRoom } from "./rooms/ZoneRoom.js";
 
 const GAME_PORT = Number(process.env.WORLD_GAME_PORT ?? 2567);
@@ -20,6 +21,7 @@ const game = new Server({
   transport: new WebSocketTransport({ server: createServer() }),
 });
 game.define("zone", ZoneRoom).filterBy(["zone"]);
+game.define("cave", CaveRoom);
 await game.listen(GAME_PORT);
 console.log(`[world] game server on :${GAME_PORT}`);
 

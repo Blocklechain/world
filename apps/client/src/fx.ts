@@ -104,7 +104,7 @@ export class FxManager {
   }
 }
 
-import { heightAt } from "@world/content";
+import { mapHeightAt } from "@world/content";
 function groundY(x: number, z: number): number {
-  return heightAt(x, z);
+  return mapHeightAt(x, z);
 }

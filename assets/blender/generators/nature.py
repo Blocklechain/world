@@ -224,6 +224,58 @@ def fishing_spot(seed: int = 0):
     return _finish("fishing_spot", bm)
 
 
+def cave_entrance(seed: int = 0):
+    """A dark maw framed by rock, readable from far away."""
+    r = common.rng(seed, "cave_entrance")
+    bm = bmesh.new()
+    # rock frame: boulders arched around the opening (door faces -Y)
+    for ang, radius, sq in ((-0.9, 1.0, 0.8), (0.9, 1.0, 0.8), (-0.45, 0.9, 0.9), (0.45, 0.9, 0.9), (0, 0.95, 0.85)):
+        x = math.sin(ang) * 1.6
+        z = 0.6 + math.cos(ang) * 1.5
+        bf = _blob(bm, (x, 0.3, z), radius * 0.8, sq, r, jitter=0.3)
+        common.paint_faces(bm, bf, "stone", 0.42)
+    # the void
+    df = common.add_box(bm, (0, -0.35, 1.0), (1.7, 0.3, 1.9))
+    common.paint_faces(bm, df, "grip", 0.04)
+    return _finish("cave_entrance", bm)
+
+
+def stalagmite(seed: int = 0):
+    r = common.rng(seed, "stalagmite")
+    bm = bmesh.new()
+    for i in range(3):
+        ang = r.uniform(0, math.tau)
+        d = r.uniform(0, 0.45)
+        h = r.uniform(0.6, 1.8) * (1.4 if i == 0 else 0.7)
+        base_r = h * r.uniform(0.18, 0.26)
+        x, y = math.cos(ang) * d, math.sin(ang) * d
+        prof = common.ngon_profile(base_r, n=6)
+        pf, _, top = common.add_prism(bm, [(x + px, y + py) for px, py in prof], 0, h * 0.75, scale_top=0.35)
+        common.paint_faces(bm, pf, "stone", r.uniform(0.32, 0.45))
+        tipf = common.spin_to_point(bm, top, (x, y, h))
+        common.paint_faces(bm, tipf, "stone", 0.5)
+    return _finish("stalagmite", bm)
+
+
+def glow_crystal(seed: int = 0):
+    r = common.rng(seed, "crystal")
+    bm = bmesh.new()
+    for i in range(4):
+        ang = r.uniform(0, math.tau)
+        d = r.uniform(0, 0.3)
+        h = r.uniform(0.5, 1.1)
+        tilt = r.uniform(-0.25, 0.25)
+        x, y = math.cos(ang) * d, math.sin(ang) * d
+        prof = common.ngon_profile(0.14, n=5)
+        pf, _, top = common.add_prism(bm, [(x + px, y + py) for px, py in prof], 0, h * 0.7, scale_top=0.5, offset_top=(tilt, tilt))
+        common.paint_faces(bm, pf, "gem", 0.8)
+        tipf = common.spin_to_point(bm, top, (x + tilt * 1.4, y + tilt * 1.4, h))
+        common.paint_faces(bm, tipf, "gem", 0.95)
+    base = _blob(bm, (0, 0, 0.08), 0.4, 0.4, r)
+    common.paint_faces(bm, base, "stone", 0.3)
+    return _finish("glow_crystal", bm)
+
+
 # ---- town & scenery --------------------------------------------------------
 
 def _house_core(bm, w, d, h, wall_row, wall_t, roof_row, roof_t):
@@ -362,6 +414,9 @@ ALL = {
     "sunbloom_patch": lambda: sunbloom(5),
     "grass_tuft": lambda: grass_tuft(9),
     "fishing_spot": lambda: fishing_spot(),
+    "cave_entrance": lambda: cave_entrance(),
+    "stalagmite": lambda: stalagmite(17),
+    "glow_crystal": lambda: glow_crystal(18),
     "bank_booth": lambda: bank_booth(),
     "house": lambda: house(),
     "house_stone": lambda: house_stone(),

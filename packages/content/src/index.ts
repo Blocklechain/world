@@ -10,3 +10,4 @@ export * from "./unlocks.js";
 export * from "./towns.js";
 export * from "./collision.js";
 export * from "./crafting.js";
+export * from "./maps.js";

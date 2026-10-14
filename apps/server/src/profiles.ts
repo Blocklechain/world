@@ -16,7 +16,7 @@ export interface Profile {
   /** questId -> progress */
   quests: Record<string, { n: number; state: "active" | "done" | "claimed" }>;
   equipment: { weapon: string | null };
-  pos?: { x: number; z: number };
+  pos?: { map: string; x: number; z: number };
 }
 
 const DATA_DIR = process.env.WORLD_DATA_DIR ?? join(process.cwd(), "data", "players");

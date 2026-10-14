@@ -6,12 +6,14 @@ import "@babylonjs/loaders/glTF/2.0";
 
 import {
   NODE_SPECIES,
+  PORTALS,
   TOWNS,
   WATER_LEVEL,
   SPAWN,
-  chunkNodes,
-  chunkScenery,
-  heightAt,
+  activeMap,
+  mapChunkNodes,
+  mapChunkScenery,
+  mapHeightAt,
   type SceneryItem,
   type WorldNode,
 } from "@world/content";
@@ -23,7 +25,7 @@ const MODELS = [
   "copper_rock", "iron_rock", "coal_rock", "mithril_rock", "adamant_rock", "rune_rock",
   "rock_rubble", "boulder", "reeds", "sunbloom_patch",
   "bank_booth", "hearth", "ruin_pillar", "barrow", "grass_tuft", "fishing_spot",
-  "house", "house_stone", "smithy",
+  "house", "house_stone", "smithy", "cave_entrance", "stalagmite", "glow_crystal",
 ];
 
 const SPECIES_MODEL: Record<string, string> = {
@@ -96,8 +98,8 @@ export class ScatterManager {
       for (const key of want) {
         if (!this.liveNodes.has(key)) {
           const [cx, cz] = key.split(":").map(Number);
-          this.liveNodes.set(key, chunkNodes(cx!, cz!));
-          this.liveScenery.set(key, chunkScenery(cx!, cz!));
+          this.liveNodes.set(key, mapChunkNodes(cx!, cz!));
+          this.liveScenery.set(key, mapChunkScenery(cx!, cz!));
         }
       }
       for (const key of this.liveNodes.keys()) {
@@ -146,12 +148,19 @@ export class ScatterManager {
     for (const items of this.liveScenery.values()) {
       for (const s of items) push(s.kind, s.x, s.y, s.z, s.yaw, s.scale);
     }
-    // town fixtures (static, part of the world)
-    push("bank_booth", SPAWN.x + 10, 4.0, SPAWN.z - 6, Math.PI, 1);
-    push("hearth", SPAWN.x, 4.0, SPAWN.z, 0, 1);
-    for (const t of TOWNS) {
-      for (const b of t.buildings) {
-        push(b.kind, b.x, heightAt(b.x, b.z) - 0.08, b.z, b.yaw, b.scale);
+    // static fixtures per map
+    if (activeMap().id === "overworld") {
+      push("bank_booth", SPAWN.x + 10, 4.0, SPAWN.z - 6, Math.PI, 1);
+      push("hearth", SPAWN.x, 4.0, SPAWN.z, 0, 1);
+      for (const t of TOWNS) {
+        for (const b of t.buildings) {
+          push(b.kind, b.x, mapHeightAt(b.x, b.z) - 0.08, b.z, b.yaw, b.scale);
+        }
+      }
+    }
+    for (const portal of PORTALS) {
+      if (portal.map === activeMap().id) {
+        push("cave_entrance", portal.x, mapHeightAt(portal.x, portal.z) - 0.05, portal.z, 0, 1);
       }
     }
 

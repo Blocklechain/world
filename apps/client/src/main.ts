@@ -1,4 +1,4 @@
-import { heightAt, regionAt } from "@world/content";
+import { PORTALS, activeMap, mapHeightAt, regionAt, setActiveMap } from "@world/content";
 import { FxManager } from "./fx";
 import { MonsterRenderer } from "./monsters";
 import { connect, type AuthResult, type Net } from "./net";
@@ -8,6 +8,8 @@ import { ScatterManager } from "./scatter";
 import { createScene } from "./scene";
 import { TerrainManager } from "./terrain";
 import { mountAuth, mountCreate, mountHud, mountStatus, type CombatRef } from "./ui";
+
+setActiveMap(sessionStorage.getItem("world:map") ?? "overworld");
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const hudEl = document.getElementById("hud") as HTMLElement;
@@ -50,7 +52,14 @@ async function start(auth: AuthResult | null) {
 
   let net: Net;
   try {
-    net = await connect(auth?.name ?? guestName, auth?.token ?? null);
+    const fromMap = sessionStorage.getItem("world:from");
+    sessionStorage.removeItem("world:from");
+    net = await connect(
+      auth?.name ?? guestName,
+      auth?.token ?? null,
+      activeMap().kind === "cave" ? "cave" : "zone",
+      fromMap,
+    );
   } catch (err) {
     console.error(err);
     localStorage.removeItem("world:auth");
@@ -72,7 +81,7 @@ async function start(auth: AuthResult | null) {
     },
     lib,
   );
-  const npcs = new NpcRenderer(world.scene, lib);
+  const npcs = activeMap().id === "overworld" ? new NpcRenderer(world.scene, lib) : null;
   const monsters = new MonsterRenderer(world.scene, net.room);
   const fx = new FxManager(world.scene);
   const combat: CombatRef = { style: "melee" };
@@ -99,8 +108,20 @@ async function start(auth: AuthResult | null) {
   // debug handle (dev console only)
   (window as unknown as Record<string, unknown>).__world = { net, monsters, renderer, scene: world.scene };
 
+  let pendingPortal: string | null = null;
+  function travel(toMap: string) {
+    pendingPortal = null;
+    mountStatus(hudEl, toMap === "overworld" ? "Climbing back to daylight…" : "Descending into the dark…");
+    sessionStorage.setItem("world:map", toMap);
+    sessionStorage.setItem("world:from", activeMap().id);
+    net.room.leave();
+    setTimeout(() => location.reload(), 350);
+  }
+
   const statusFor = (x: number, z: number) =>
-    `${regionAt(x, z).name} — ${auth?.name ?? guestName}`;
+    activeMap().id === "overworld"
+      ? `${regionAt(x, z).name} — ${auth?.name ?? guestName}`
+      : `${activeMap().name} — ${auth?.name ?? guestName}`;
   mountHud(hudEl, net, statusFor(0, 0), combat);
   let lastRegion = "";
 
@@ -119,7 +140,7 @@ async function start(auth: AuthResult | null) {
   ring.setEnabled(false);
   let ringUntil = 0;
   const showRing = (x: number, z: number, radius = 1.2) => {
-    ring.position.set(x, heightAt(x, z) + 0.12, z);
+    ring.position.set(x, mapHeightAt(x, z) + 0.12, z);
     ring.scaling.setAll(radius);
     ring.setEnabled(true);
     ringUntil = performance.now() + 1600;
@@ -139,9 +160,22 @@ async function start(auth: AuthResult | null) {
     const pick = world.scene.pick(e.clientX, e.clientY, (m) => m.name.startsWith("terrain:"));
     if (!pick?.pickedPoint) return;
     const { x, z } = pick.pickedPoint;
-    const npcId = npcs.nearest(x, z);
+    const portal = PORTALS.find((pt) => pt.map === activeMap().id && Math.hypot(pt.x - x, pt.z - z) < 3);
+    if (portal) {
+      const self = renderer.getSelfPosition();
+      if (self && Math.hypot(self.x - portal.x, self.z - portal.z) > 4) {
+        net.sendMove(portal.x, portal.z);
+        renderer.setLocalTarget(portal.x, portal.z);
+        showRing(portal.x, portal.z, 1.2);
+        pendingPortal = portal.toMap;
+        return;
+      }
+      travel(portal.toMap);
+      return;
+    }
+    const npcId = npcs?.nearest(x, z) ?? null;
     if (npcId) {
-      const np = npcs.npcPos(npcId)!;
+      const np = npcs!.npcPos(npcId)!;
       const self = renderer.getSelfPosition();
       if (self && Math.hypot(self.x - np.x, self.z - np.z) > 5.5) {
         const dx = self.x - np.x;
@@ -188,14 +222,18 @@ async function start(auth: AuthResult | null) {
     const self = renderer.getSelfPosition();
     if (!self) return;
     monsters.update(dt, self.x, self.z);
-    npcs.update(self.x, self.z);
+    npcs?.update(self.x, self.z);
+    if (pendingPortal) {
+      const pt = PORTALS.find((q) => q.toMap === pendingPortal && q.map === activeMap().id);
+      if (pt && Math.hypot(self.x - pt.x, self.z - pt.z) < 3.4) travel(pendingPortal);
+    }
     terrain.update(self.x, self.z);
     scatter.update(self.x, self.z);
-    const ty = heightAt(self.x, self.z) + 1.1;
+    const ty = mapHeightAt(self.x, self.z) + 1.1;
     world.camera.target.x += (self.x - world.camera.target.x) * 0.12;
     world.camera.target.z += (self.z - world.camera.target.z) * 0.12;
     world.camera.target.y += (ty - world.camera.target.y) * 0.08;
-    const region = regionAt(self.x, self.z).name;
+    const region = activeMap().id === "overworld" ? regionAt(self.x, self.z).name : activeMap().name;
     if (region !== lastRegion) {
       lastRegion = region;
       mountHud(hudEl, net, statusFor(self.x, self.z), combat);

@@ -89,10 +89,15 @@ export interface Net {
   isDepleted(nodeId: string): boolean;
 }
 
-export async function connect(name: string, token: string | null): Promise<Net> {
+export async function connect(
+  name: string,
+  token: string | null,
+  roomName = "zone",
+  fromMap?: string | null,
+): Promise<Net> {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const client = new Client(`${proto}://${location.host}/colyseus`);
-  const room = await client.joinOrCreate("zone", { zone: DEFAULT_ZONE, name, token });
+  const room = await client.joinOrCreate(roomName, { zone: DEFAULT_ZONE, name, token, fromMap });
 
   const game: GameState = { address: null, skills: null, inv: [], bankOpen: false, bank: {}, quests: {} };
   const chatCbs: ((l: ChatLine) => void)[] = [];

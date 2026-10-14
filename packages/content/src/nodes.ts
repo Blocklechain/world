@@ -89,7 +89,7 @@ export function allNodes(): Map<string, WorldNode> {
 // ---- scenery (non-interactable props) --------------------------------------
 
 export interface SceneryItem {
-  kind: "ruin_pillar" | "barrow" | "boulder" | "grass_tuft";
+  kind: "ruin_pillar" | "barrow" | "boulder" | "grass_tuft" | "stalagmite" | "glow_crystal";
   x: number;
   z: number;
   y: number;

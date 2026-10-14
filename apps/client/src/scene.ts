@@ -11,7 +11,7 @@ import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/core/Culling/ray";
 
-import { SPAWN, heightAt } from "@world/content";
+import { activeMap } from "@world/content";
 
 export interface WorldScene {
   engine: Engine;
@@ -24,17 +24,18 @@ export interface WorldScene {
 /** Engine, camera and the light rig for the overworld. Terrain and props are
  * streamed by TerrainManager / ScatterManager. */
 export function createScene(canvas: HTMLCanvasElement): WorldScene {
+  const cave = activeMap().kind === "cave";
   const engine = new Engine(canvas, true, { adaptToDeviceRatio: false });
   engine.setHardwareScalingLevel(1 / Math.min(window.devicePixelRatio, 2));
 
   const scene = new Scene(engine);
   // warm late-afternoon light; fog melts terrain into the horizon band
-  scene.clearColor = new Color4(0.74, 0.8, 0.9, 1);
-  scene.ambientColor = new Color3(0.3, 0.32, 0.35);
+  scene.clearColor = cave ? new Color4(0.02, 0.02, 0.03, 1) : new Color4(0.74, 0.8, 0.9, 1);
+  scene.ambientColor = cave ? new Color3(0.1, 0.1, 0.14) : new Color3(0.3, 0.32, 0.35);
   scene.fogMode = Scene.FOGMODE_LINEAR;
-  scene.fogStart = 105;
-  scene.fogEnd = 190;
-  scene.fogColor = new Color3(0.78, 0.8, 0.86);
+  scene.fogStart = cave ? 18 : 105;
+  scene.fogEnd = cave ? 52 : 190;
+  scene.fogColor = cave ? new Color3(0.02, 0.02, 0.03) : new Color3(0.78, 0.8, 0.86);
 
   // cinematic grade: ACES tonemap + gentle contrast + vignette
   const ipc = scene.imageProcessingConfiguration;
@@ -46,12 +47,13 @@ export function createScene(canvas: HTMLCanvasElement): WorldScene {
   ipc.vignetteWeight = 1.4;
   ipc.vignetteColor = new Color4(0.05, 0.06, 0.1, 0);
 
+  const sp = activeMap().spawn;
   const camera = new ArcRotateCamera(
     "cam",
     -Math.PI / 2,
     1.0,
     20,
-    new Vector3(SPAWN.x, heightAt(SPAWN.x, SPAWN.z), SPAWN.z),
+    new Vector3(sp.x, activeMap().heightAt(sp.x, sp.z), sp.z),
     scene,
   );
   camera.attachControl(canvas, true);
@@ -65,12 +67,12 @@ export function createScene(canvas: HTMLCanvasElement): WorldScene {
   camera.maxZ = 260;
 
   const hemi = new HemisphericLight("hemi", new Vector3(0, 1, 0), scene);
-  hemi.intensity = 0.55;
+  hemi.intensity = cave ? 0.32 : 0.55;
   hemi.diffuse = new Color3(0.85, 0.88, 1.0);
   hemi.groundColor = new Color3(0.35, 0.32, 0.26);
 
   const sun = new DirectionalLight("sun", new Vector3(-0.45, -0.85, 0.3), scene);
-  sun.intensity = 1.15;
+  sun.intensity = cave ? 0.25 : 1.15;
   sun.diffuse = new Color3(1.0, 0.95, 0.82);
   sun.autoCalcShadowZBounds = true;
 
@@ -79,7 +81,8 @@ export function createScene(canvas: HTMLCanvasElement): WorldScene {
   shadows.filteringQuality = ShadowGenerator.QUALITY_LOW;
   shadows.darkness = 0.45;
 
-  // gradient sky dome: deep zenith blue -> warm horizon band
+  // gradient sky dome: deep zenith blue -> warm horizon band (surface only)
+  if (!cave) {
   const sky = MeshBuilder.CreateSphere("sky", { diameter: 480, segments: 12, sideOrientation: 1 }, scene);
   const pos = sky.getVerticesData(VertexBuffer.PositionKind)!;
   const cols = new Float32Array((pos.length / 3) * 4);
@@ -106,6 +109,7 @@ export function createScene(canvas: HTMLCanvasElement): WorldScene {
   sky.applyFog = false;
   sky.isPickable = false;
   sky.infiniteDistance = true;
+  }
 
   engine.runRenderLoop(() => scene.render());
   window.addEventListener("resize", () => engine.resize());

@@ -1,7 +1,7 @@
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math";
 import type { Scene } from "@babylonjs/core/scene";
 
-import { NPCS, heightAt } from "@world/content";
+import { NPCS, mapHeightAt } from "@world/content";
 import { CharacterLibrary, PlayerAvatar } from "./players";
 
 /** Townsfolk: static avatars with floating name labels. */
@@ -19,7 +19,7 @@ export class NpcRenderer {
     document.getElementById("hud")!.appendChild(this.container);
     for (const npc of NPCS) {
       const av = new PlayerAvatar(scene, lib, npc.look, `npc:${npc.id}`);
-      av.root.position.set(npc.x, heightAt(npc.x, npc.z), npc.z);
+      av.root.position.set(npc.x, mapHeightAt(npc.x, npc.z), npc.z);
       av.root.rotation.y = npc.yaw;
       this.avatars.set(npc.id, av);
       const el = document.createElement("div");
@@ -61,7 +61,7 @@ export class NpcRenderer {
         el.style.display = "none";
         continue;
       }
-      const head = new Vector3(npc.x, heightAt(npc.x, npc.z) + 2.05, npc.z);
+      const head = new Vector3(npc.x, mapHeightAt(npc.x, npc.z) + 2.05, npc.z);
       const proj = Vector3.Project(head, Matrix.Identity(), this.scene.getTransformMatrix(), cam.viewport.toGlobal(w, h));
       if (proj.z > 1 || proj.z < 0) {
         el.style.display = "none";

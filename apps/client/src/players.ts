@@ -8,7 +8,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/loaders/glTF/2.0";
 import type { Room } from "colyseus.js";
 
-import { ITEMS, WATER_LEVEL, decodeLook, heightAt, isWalkable, resolveMove, slopeSpeedMult, type Appearance } from "@world/content";
+import { ITEMS, WATER_LEVEL, activeMap, decodeLook, mapHeightAt, mapIsWalkable, resolveMove, slopeSpeedMult, type Appearance } from "@world/content";
 
 const WEAPON_MODELS: Record<string, string> = Object.fromEntries(
   Object.values(ITEMS)
@@ -219,7 +219,7 @@ export class PlayerRenderer {
       }
       const pos = av.root.position;
       let isMoving: boolean;
-      const groundY = heightAt(pos.x, pos.z);
+      const groundY = mapHeightAt(pos.x, pos.z);
       // swimmers float chest-deep instead of walking the seabed
       pos.y = groundY < WATER_LEVEL - 0.25 ? Math.max(groundY, WATER_LEVEL - 1.15) : groundY;
 
@@ -233,8 +233,9 @@ export class PlayerRenderer {
           const ux = dx / dist;
           const uz = dz / dist;
           const s = Math.min(step * slopeSpeedMult(pos.x, pos.z, ux, uz), dist);
-          const slid = resolveMove(pos.x + ux * s, pos.z + uz * s);
-          if (isWalkable(slid.x, slid.z) && Math.hypot(slid.x - pos.x, slid.z - pos.z) > s * 0.15) {
+          const raw = { x: pos.x + ux * s, z: pos.z + uz * s };
+          const slid = activeMap().id === "overworld" ? resolveMove(raw.x, raw.z) : raw;
+          if (mapIsWalkable(slid.x, slid.z) && Math.hypot(slid.x - pos.x, slid.z - pos.z) > s * 0.15) {
             pos.x = slid.x;
             pos.z = slid.z;
             av.root.rotation.y = Math.atan2(dx, dz) + HEADING_OFFSET;

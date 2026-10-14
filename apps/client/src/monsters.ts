@@ -8,7 +8,7 @@ import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Scene } from "@babylonjs/core/scene";
 import type { Room } from "colyseus.js";
 
-import { MONSTERS, WATER_LEVEL, heightAt } from "@world/content";
+import { MONSTERS, WATER_LEVEL, mapHeightAt } from "@world/content";
 
 interface MonsterLike {
   species: string;
@@ -22,7 +22,7 @@ interface MonsterLike {
 }
 
 const MODELS = [
-  "vermin", "wolf", "goblin", "goblin_brute", "bandit", "skeleton", "acolyte", "spider", "troll",
+  "vermin", "wolf", "goblin", "goblin_brute", "bandit", "skeleton", "acolyte", "spider", "troll", "cave_bat",
 ];
 
 interface MonsterView {
@@ -136,7 +136,7 @@ export class MonsterRenderer {
         barBg.position.y = h;
         bar.position.y = h;
         bar.position.z = -0.001;
-        root.position.set(m.x, heightAt(m.x, m.z), m.z);
+        root.position.set(m.x, mapHeightAt(m.x, m.z), m.z);
         v = { root, body, bar, barBg, lungeT: 0, bob: Math.random() * 7 };
         this.views.set(id, v);
       }
@@ -145,7 +145,7 @@ export class MonsterRenderer {
       const k = 1 - Math.exp(-dtMs / 90);
       pos.x += (m.x - pos.x) * k;
       pos.z += (m.z - pos.z) * k;
-      const ground = heightAt(pos.x, pos.z);
+      const ground = mapHeightAt(pos.x, pos.z);
       pos.y = Math.min(ground, WATER_LEVEL - 0.1 < ground ? ground : ground);
       pos.y = ground;
       v.root.rotation.y += (angleLerp(v.root.rotation.y, m.heading) - v.root.rotation.y) * k;
