@@ -5,6 +5,10 @@ import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGenerator";
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 import { DefaultRenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline";
+import { SSAO2RenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/ssao2RenderingPipeline";
+import "@babylonjs/core/Rendering/prePassRendererSceneComponent";
+import "@babylonjs/core/Rendering/geometryBufferRendererSceneComponent";
+import { VolumetricLightScatteringPostProcess } from "@babylonjs/core/PostProcesses/volumetricLightScatteringPostProcess";
 import { ParticleSystem } from "@babylonjs/core/Particles/particleSystem";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture";
@@ -103,18 +107,43 @@ export function createScene(canvas: HTMLCanvasElement): WorldScene {
   sun.autoCalcShadowZBounds = true;
 
   const shadows = new ShadowGenerator(2048, sun);
-  shadows.usePercentageCloserFiltering = true;
-  shadows.filteringQuality = ShadowGenerator.QUALITY_MEDIUM;
-  shadows.darkness = 0.42;
-  shadows.bias = 0.0012;
+  shadows.useContactHardeningShadow = true;
+  shadows.contactHardeningLightSizeUVRatio = 0.04;
+  shadows.filteringQuality = ShadowGenerator.QUALITY_HIGH;
+  shadows.darkness = 0.4;
+  shadows.bias = 0.0011;
 
-  // post FX: antialiasing + a touch of bloom (tone mapping already set above)
-  const pipeline = new DefaultRenderingPipeline("rp", false, scene, [camera]);
+  // post FX: AA + bloom + subtle sharpen + grain + chromatic edge
+  const pipeline = new DefaultRenderingPipeline("rp", true, scene, [camera]);
+  pipeline.samples = 4;
   pipeline.fxaaEnabled = true;
   pipeline.bloomEnabled = true;
-  pipeline.bloomThreshold = 0.86;
-  pipeline.bloomWeight = 0.18;
-  pipeline.bloomScale = 0.5;
+  pipeline.bloomThreshold = 0.82;
+  pipeline.bloomWeight = 0.22;
+  pipeline.bloomScale = 0.55;
+  pipeline.imageProcessingEnabled = true;
+  pipeline.imageProcessing.toneMappingEnabled = true;
+  pipeline.imageProcessing.toneMappingType = 1;
+  pipeline.imageProcessing.exposure = 1.18;
+  pipeline.imageProcessing.contrast = 1.15;
+  pipeline.imageProcessing.vignetteEnabled = true;
+  pipeline.imageProcessing.vignetteWeight = 1.6;
+  pipeline.grainEnabled = true;
+  pipeline.grain.intensity = 4;
+  pipeline.grain.animated = true;
+  pipeline.sharpenEnabled = true;
+  pipeline.sharpen.edgeAmount = 0.22;
+  pipeline.depthOfFieldEnabled = false;
+
+  if (!cave) {
+    // ambient occlusion deepens contact shadows
+    const ssao = new SSAO2RenderingPipeline("ssao", scene, { ssaoRatio: 0.75, blurRatio: 1 }, [camera]);
+    ssao.radius = 1.6;
+    ssao.totalStrength = 0.9;
+    ssao.expensiveBlur = true;
+    ssao.samples = 12;
+    ssao.maxZ = 180;
+  }
 
   // gradient sky dome: deep zenith blue -> warm horizon band (surface only)
   if (!cave) {
@@ -156,6 +185,12 @@ export function createScene(canvas: HTMLCanvasElement): WorldScene {
   sunDisc.billboardMode = 7;
   sunDisc.applyFog = false;
   sunDisc.isPickable = false;
+  // volumetric light shafts from the sun
+  const godRays = new VolumetricLightScatteringPostProcess("godrays", 1.0, camera, sunDisc, 50, undefined, engine, false);
+  godRays.exposure = 0.18;
+  godRays.decay = 0.965;
+  godRays.weight = 0.4;
+  godRays.density = 0.92;
 
   // drifting cloud billboards
   const cloudTex = new Texture("/assets/terrain/clouds.png", scene);
