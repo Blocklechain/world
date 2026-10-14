@@ -107,11 +107,10 @@ export class PlayerAvatar {
   }
 
   play(name: string, speedRatio = 1) {
-    // combat styles reuse the tool-swing until dedicated clips land
-    if (name === "melee" || name === "shoot" || name === "cast") name = "chop";
+    if (name === "melee") name = "attack_1h";
     const clip =
       this.clips.get(name) ??
-      this.clips.get(["chop","mine","swim","fish"].includes(name) ? "idle" : name);
+      this.clips.get("idle"); // graceful if a clip is missing from an older GLB
     if (!clip || this.current === clip) {
       if (clip) clip.speedRatio = speedRatio;
       return;

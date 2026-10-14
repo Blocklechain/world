@@ -149,6 +149,103 @@ def build_mine(rig):
     return _swing(rig, "mine", 32, raise_amt=1.5, chop_depth=0.75, twist=0.05)
 
 
+def build_attack_1h(rig):
+    """One-hand horizontal slash: wind back right, cut across, recover."""
+
+    def pose(rig, f, t):
+        if t < 0.35:
+            k = t / 0.35  # wind up
+            arm_x, arm_z, twist = -0.5 - 0.9 * k, -0.5 * k, 0.35 * k
+        elif t < 0.55:
+            k = (t - 0.35) / 0.2  # slash
+            arm_x, arm_z, twist = -1.4 + 1.3 * k * k, -0.5 + 1.0 * k, 0.35 - 0.8 * k
+        else:
+            k = (t - 0.55) / 0.45  # recover
+            arm_x, arm_z, twist = -0.1 - 0.4 * (1 - k), 0.5 * (1 - k), -0.45 * (1 - k)
+        _key(rig, f, "upper_arm.R", rot=(arm_x, arm_z, -0.1))
+        _key(rig, f, "forearm.R", rot=(-0.4, 0, 0))
+        _key(rig, f, "upper_arm.L", rot=(-0.2, 0, 0.15))
+        _key(rig, f, "forearm.L", rot=(-0.5, 0, 0))
+        _key(rig, f, "chest", rot=(0.08, 0, twist))
+        _key(rig, f, "hips", rot=(0, 0, twist * 0.4))
+        _key(rig, f, "head", rot=(0, 0, -twist * 0.5))
+
+    return _cycle(rig, "attack_1h", 26, 2, pose)
+
+
+def build_shoot(rig):
+    """Bow: raise, draw with the right hand, loose, lower."""
+
+    def pose(rig, f, t):
+        if t < 0.3:
+            k = t / 0.3  # raise bow (left arm forward)
+            aim = k
+            draw = 0.0
+        elif t < 0.6:
+            aim = 1.0
+            draw = (t - 0.3) / 0.3
+        elif t < 0.7:
+            aim = 1.0
+            draw = 1.0 - (t - 0.6) / 0.1  # loose!
+        else:
+            k = (t - 0.7) / 0.3
+            aim = 1.0 - k
+            draw = 0.0
+        _key(rig, f, "upper_arm.L", rot=(-1.45 * aim, 0, 0.1))
+        _key(rig, f, "forearm.L", rot=(-0.1, 0, 0))
+        _key(rig, f, "upper_arm.R", rot=(-1.3 * aim, 0, -0.15))
+        _key(rig, f, "forearm.R", rot=(-0.3 - 0.9 * draw, 0, 0))
+        _key(rig, f, "chest", rot=(0.04, 0, 0.3 * aim))
+        _key(rig, f, "head", rot=(0, 0, -0.3 * aim))
+
+    return _cycle(rig, "shoot", 30, 2, pose)
+
+
+def build_cast(rig):
+    """Magic: gather power at the chest, thrust both palms forward."""
+
+    def pose(rig, f, t):
+        if t < 0.45:
+            k = math.sin(t / 0.45 * math.pi / 2)  # gather
+            arm_x, fore, spread = -0.7 * k, -1.3 * k, 0.1
+        elif t < 0.62:
+            k = (t - 0.45) / 0.17  # thrust
+            arm_x, fore, spread = -0.7 - 0.75 * k, -1.3 + 1.1 * k, 0.1 + 0.15 * k
+        else:
+            k = (t - 0.62) / 0.38
+            arm_x, fore, spread = -1.45 + 1.45 * k, -0.2 - 0.0 * k, 0.25 - 0.15 * k
+        for side, s in (("L", 1), ("R", -1)):
+            _key(rig, f, f"upper_arm.{side}", rot=(arm_x, 0, s * spread))
+            _key(rig, f, f"forearm.{side}", rot=(fore, 0, 0))
+        lean = 0.1 if 0.45 <= t < 0.75 else 0.02
+        _key(rig, f, "chest", rot=(lean, 0, 0))
+        _key(rig, f, "hips", loc=(0, 0, -0.02 if t < 0.45 else 0))
+
+    return _cycle(rig, "cast", 32, 2, pose)
+
+
+def build_fish(rig):
+    """Fishing: flick the rod out, then settle into a patient hold."""
+
+    def pose(rig, f, t):
+        if t < 0.12:
+            k = t / 0.12
+            arm = -0.5 - 0.9 * math.sin(k * math.pi)  # back-flick
+        elif t < 0.2:
+            arm = -0.5 - 0.4 * (1 - (t - 0.12) / 0.08)
+        else:
+            arm = -0.55 + 0.04 * math.sin(TAU * (t - 0.2) / 0.8 * 2)  # gentle hold bob
+        _key(rig, f, "upper_arm.R", rot=(arm, 0, -0.08))
+        _key(rig, f, "forearm.R", rot=(-0.5, 0, 0))
+        _key(rig, f, "upper_arm.L", rot=(-0.15, 0, 0.1))
+        _key(rig, f, "forearm.L", rot=(-0.3, 0, 0))
+        s = math.sin(TAU * t)
+        _key(rig, f, "chest", rot=(0.05 + 0.015 * s, 0, 0.04))
+        _key(rig, f, "hips", loc=(0, 0, 0.006 * s))
+
+    return _cycle(rig, "fish", 80, 4, pose)
+
+
 def build_swim(rig):
     """Upright treading-water paddle: alternating arm sweeps, legs kicking."""
 
@@ -171,7 +268,10 @@ def build_swim(rig):
 
 def build_all(rig):
     bpy.context.scene.render.fps = FPS
-    acts = [build_idle(rig), build_walk(rig), build_run(rig), build_chop(rig), build_mine(rig), build_swim(rig)]
+    acts = [
+        build_idle(rig), build_walk(rig), build_run(rig), build_chop(rig), build_mine(rig),
+        build_swim(rig), build_attack_1h(rig), build_shoot(rig), build_cast(rig), build_fish(rig),
+    ]
     ad = rig.animation_data
     ad.action = None
     for t in list(ad.nla_tracks):

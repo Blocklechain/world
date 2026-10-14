@@ -260,20 +260,20 @@ def _house_core(bm, w, d, h, wall_row, wall_t, roof_row, roof_t):
 
 def house(seed: int = 0):
     bm = bmesh.new()
-    _house_core(bm, 4.6, 3.8, 2.6, "bone", 0.55, "cloth", 0.4)
+    _house_core(bm, 4.6, 3.8, 2.6, "bone", 0.8, "cloth", 0.55)
     return _finish("house", bm)
 
 
 def house_stone(seed: int = 0):
     bm = bmesh.new()
-    _house_core(bm, 5.2, 4.2, 2.9, "stone", 0.5, "wood", 0.35)
+    _house_core(bm, 5.2, 4.2, 2.9, "stone", 0.72, "wood", 0.5)
     return _finish("house_stone", bm)
 
 
 def smithy(seed: int = 0):
     r = common.rng(seed, "smithy")
     bm = bmesh.new()
-    _house_core(bm, 5.4, 4.4, 2.7, "stone", 0.42, "wood", 0.3)
+    _house_core(bm, 5.4, 4.4, 2.7, "stone", 0.6, "wood", 0.45)
     # chimney with embers
     cf = common.add_box(bm, (1.6, 1.2, 4.6), (0.7, 0.7, 2.2))
     common.paint_faces(bm, cf, "stone", 0.35)
