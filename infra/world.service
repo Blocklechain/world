@@ -1,0 +1,18 @@
+[Unit]
+Description=WORLD game server (world.blockle.org)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/world/app/apps/server
+Environment=NODE_ENV=production
+Environment=WORLD_GAME_PORT=4567
+Environment=WORLD_API_PORT=4580
+ExecStart=/opt/world/app/apps/server/node_modules/.bin/tsx src/index.ts
+Restart=always
+RestartSec=3
+# the game server talks only to local postgres/redis/chain-node; never the internet at large
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

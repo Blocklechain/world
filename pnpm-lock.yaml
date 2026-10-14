@@ -56,16 +56,20 @@ importers:
       fastify:
         specifier: ^5.0.0
         version: 5.12.7
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.15
     devDependencies:
       '@types/node':
         specifier: ^20
         version: 20.19.43
-      tsx:
-        specifier: ^4.19.0
-        version: 4.23.15
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
+
+  packages/blockle-wasm: {}
+
+  packages/blockle-wasm-node: {}
 
   packages/shared:
     devDependencies:
