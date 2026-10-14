@@ -29,8 +29,8 @@ function pixel(x: number, z: number): [number, number, number] {
   const sandW = Math.min(1, Math.max(0, (WATER_LEVEL + 1.2 - h) / 2.0)) * (0.45 + 0.55 * oceanMask(x, z));
   let col = [0, 1, 2].map((i) => GRASS[i]! * g + DIRT[i]! * d + ROCK[i]! * r + MARSH[i]! * m);
   col = col.map((c, i) => c * (1 - sandW) + SAND[i]! * sandW);
-  if (h > 13) {
-    const t = Math.min(1, (h - 13) / 6);
+  if (h > 15) {
+    const t = Math.min(1, (h - 15) / 7);
     col = col.map((c, i) => c * (1 - t) + SNOW[i]! * t);
   }
   // hillshade from the west

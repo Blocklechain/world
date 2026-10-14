@@ -147,16 +147,12 @@ async function start(auth: AuthResult | null) {
   // controls: tap interacts, hold/drag steers, two fingers orbit/zoom
   let lastSteerSent = 0;
   installControls(canvas, world.scene, world.camera, {
-    onSteer(px, pz) {
+    onSteerDir(dx, dz) {
       const self = renderer.getSelfPosition();
       if (!self) return;
-      const dx = px - self.x;
-      const dz = pz - self.z;
-      const dist = Math.hypot(dx, dz);
-      if (dist < 0.4) return;
       let target: { x: number; z: number } | null = null;
-      for (const reach of [Math.min(8, dist), 4, 2]) {
-        const t = { x: self.x + (dx / dist) * reach, z: self.z + (dz / dist) * reach };
+      for (const reach of [7, 4, 2]) {
+        const t = { x: self.x + dx * reach, z: self.z + dz * reach };
         const sp = (net.room.state as { players?: Map<string, { boat: boolean }> }).players?.get(net.sessionId);
         const ok = sp?.boat ? true : activeMap().isWalkable(t.x, t.z);
         if (ok) {

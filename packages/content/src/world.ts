@@ -12,7 +12,7 @@ export const CELL = 512;
 export const WORLD_W = 3 * CELL; // 1536
 export const WORLD_H = 4 * CELL; // 2048
 export const WATER_LEVEL = 1.2;
-export const MAX_WALK_HEIGHT = 15;
+export const MAX_WALK_HEIGHT = 19;
 export const SPAWN = { x: 768, z: 768 }; // Hearthmere square
 export const TOWN_RADIUS = 56;
 
@@ -136,8 +136,8 @@ export function oceanMask(x: number, z: number): number {
 
 export function heightAt(x: number, z: number): number {
   const { lift, amp } = blendedRegion(x, z);
-  let h = 2.6 + lift + amp * (fbm(x, z, 150, 4, WORLD_SEED) - 0.5) * 14;
-  h += amp * (fbm(x, z, 31, 2, WORLD_SEED + 7) - 0.5) * 2.2;
+  let h = 2.6 + lift + amp * (fbm(x, z, 150, 4, WORLD_SEED) - 0.5) * 19;
+  h += amp * (fbm(x, z, 31, 2, WORLD_SEED + 7) - 0.5) * 3.0;
 
   // Greywater: carve the lake
   const lx = x - 360;
