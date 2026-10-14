@@ -6,9 +6,11 @@ import { NODE_SPECIES } from "./gathering.js";
 import { MONSTERS } from "./monsters.js";
 import { SCATTER_CHUNK, chunkNodes, chunkScenery, type SceneryItem, type WorldNode } from "./nodes.js";
 import { chunkMonsterSpawns, type MonsterSpawn } from "./spawns.js";
+import { ROADS, roadInfluence } from "./towns.js";
 import {
   SPAWN,
   WORLD_H,
+  _setRoadInfluence,
   WORLD_W,
   fbm,
   groundWeights,
@@ -259,6 +261,9 @@ export const SUNKEN_KEEP: GameMap = {
     ),
   monsterSpawns: keepMonsterSpawns,
 };
+
+// roads affect overworld terrain height + ground only
+_setRoadInfluence((x, z) => (ROADS.length ? roadInfluence(x, z) : { dist: Infinity, width: 0 }));
 
 export const MAPS: Record<string, GameMap> = {
   overworld: OVERWORLD,

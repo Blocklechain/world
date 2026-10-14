@@ -29,6 +29,11 @@ const BUILDING_RADIUS: Record<string, number> = {
   house: 2.9,
   house_stone: 3.2,
   smithy: 3.3,
+  market_stall: 1.5,
+  well: 1.0,
+  wall_segment: 2.2,
+  gate_tower: 1.6,
+  lamp_post: 0.3,
 };
 
 const chunkCache = new Map<string, Circle[]>();

@@ -35,6 +35,7 @@ const MODELS = [
   "bank_booth", "hearth", "ruin_pillar", "barrow", "grass_tuft", "fishing_spot",
   "house", "house_stone", "smithy", "cave_entrance", "stalagmite", "glow_crystal", "rowboat",
   "bush", "fern", "mushrooms", "fallen_log", "pebbles",
+  "market_stall", "well", "wall_segment", "gate_tower", "lamp_post",
 ];
 
 const SPECIES_MODEL: Record<string, string> = {

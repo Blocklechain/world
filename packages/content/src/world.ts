@@ -134,6 +134,20 @@ export function oceanMask(x: number, z: number): number {
   return smooth(Math.min(1, Math.max(0, (d - 0.8) / 0.2)));
 }
 
+function heightAt0(x: number, z: number): number {
+  const { lift, amp } = blendedRegion(x, z);
+  let h = 2.6 + lift + amp * (fbm(x, z, 150, 4, WORLD_SEED) - 0.5) * 19;
+  h += amp * (fbm(x, z, 31, 2, WORLD_SEED + 7) - 0.5) * 3.0;
+  const td = Math.hypot(x - SPAWN.x, z - SPAWN.z);
+  if (td < TOWN_RADIUS) h = h * (1 - smooth(1 - td / TOWN_RADIUS)) + 4.0 * smooth(1 - td / TOWN_RADIUS);
+  return h;
+}
+
+let _roadInfluence: ((x: number, z: number) => { dist: number; width: number }) | null = null;
+export function _setRoadInfluence(fn: (x: number, z: number) => { dist: number; width: number }) {
+  _roadInfluence = fn;
+}
+
 export function heightAt(x: number, z: number): number {
   const { lift, amp } = blendedRegion(x, z);
   let h = 2.6 + lift + amp * (fbm(x, z, 150, 4, WORLD_SEED) - 0.5) * 19;
@@ -150,6 +164,16 @@ export function heightAt(x: number, z: number): number {
   if (td < TOWN_RADIUS) {
     const t = smooth(1 - td / TOWN_RADIUS);
     h = h * (1 - t) + 4.0 * t;
+  }
+
+  // roads: gently flatten a ribbon toward a smoothed local grade
+  if (_roadInfluence) {
+    const { dist, width } = _roadInfluence(x, z);
+    if (dist < width + 3) {
+      const t = smooth(1 - Math.min(1, dist / (width + 3)));
+      const grade = (heightAt0(x - width, z) + heightAt0(x + width, z) + heightAt0(x, z - width) + heightAt0(x, z + width)) / 4;
+      h = h * (1 - t * 0.85) + grade * (t * 0.85) - t * 0.12;
+    }
   }
 
   // the island of Veyra: everything sinks to the ocean floor at the coast
@@ -172,6 +196,15 @@ export function groundWeights(x: number, z: number, h?: number): [number, number
   r = r + (1 - r) * rocky;
   g *= 1 - rocky * 0.9;
   m *= 1 - rocky;
+  if (_roadInfluence) {
+    const { dist, width } = _roadInfluence(x, z);
+    if (dist < width) {
+      const t = smooth(1 - dist / width);
+      d += t * 2.0;
+      g *= 1 - t * 0.9;
+      r *= 1 - t * 0.5;
+    }
+  }
   const sum = g + d + r + m || 1;
   return [g / sum, d / sum, r / sum, m / sum];
 }

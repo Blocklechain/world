@@ -1,7 +1,7 @@
 /** Deterministic resource-node and scenery scatter. Client and server derive
  * identical node lists per 64m chunk from the world seed. */
 import { NODE_SPECIES, REGION_SCATTER } from "./gathering.js";
-import { NODE_SPECIES as _SP } from "./gathering.js";
+import { roadInfluence } from "./towns.js";
 import {
   SPAWN,
   WATER_LEVEL,
@@ -58,6 +58,8 @@ export function chunkNodes(cx: number, cz: number): WorldNode[] {
       i++;
       const wantsWater = NODE_SPECIES[species]?.kind === "fishing";
       if (wantsWater ? moveStateAt(x, z) !== "swim" : !isLand(x, z)) continue;
+      const ri = roadInfluence(x, z);
+      if (ri.dist < ri.width + 1.5) continue; // keep roads clear
       const d = Math.hypot(x - SPAWN.x, z - SPAWN.z);
       if (d < TOWN_RADIUS * 0.55) continue; // keep the town square clear
       const sp = NODE_SPECIES[species];

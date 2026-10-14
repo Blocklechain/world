@@ -435,17 +435,116 @@ def rowboat(seed: int = 0):
     return _finish("rowboat", bm)
 
 
+def market_stall(seed: int = 0):
+    r = common.rng(seed, "stall")
+    bm = bmesh.new()
+    counter = common.add_box(bm, (0, 0, 0.5), (2.2, 1.0, 1.0))
+    common.paint_faces(bm, counter, "wood", 0.42)
+    top = common.add_box(bm, (0, 0, 1.03), (2.4, 1.2, 0.06))
+    common.paint_faces(bm, top, "wood", 0.55)
+    for sx in (-1, 1):
+        post = common.add_box(bm, (sx * 1.05, 0.5, 1.7), (0.1, 0.1, 1.4))
+        common.paint_faces(bm, post, "wood", 0.35)
+    # striped awning (two sloped slabs)
+    for i, col in enumerate(("cloth", "white")):
+        aw = common.add_box(bm, (0, 0.3 - i * 0.0, 2.45), (2.6, 1.6, 0.06))
+        import bmesh as _b
+        vs = set(v for f in aw for v in f.verts)
+        _b.ops.rotate(bm, verts=list(vs), cent=(0, 0.3, 2.45), matrix=Matrix.Rotation(math.radians(18), 4, "X"))
+        common.paint_faces(bm, aw, col, 0.5 if i == 0 else 0.85)
+        break
+    # goods on the counter
+    for gx in (-0.6, 0, 0.6):
+        g = _blob(bm, (gx, -0.1, 1.12), 0.14, 0.8, r)
+        common.paint_faces(bm, g, r.choice(["copper", "gold", "cloth", "adamant"]), 0.6)
+    return _finish("market_stall", bm)
+
+
+def well(seed: int = 0):
+    bm = bmesh.new()
+    n = 12
+    for r0, r1 in ((0.75, 0.72),):
+        rings = []
+        for rr, z in ((r0, 0), (r0, 0.7)):
+            rings.append([bm.verts.new((rr * math.cos(a), rr * math.sin(a), z)) for a in [k * math.tau / n for k in range(n)]])
+        for a, b in zip(rings, rings[1:]):
+            fs = [bm.faces.new((a[i], a[(i+1)%n], b[(i+1)%n], b[i])) for i in range(n)]
+            common.paint_faces(bm, fs, "stone", 0.45)
+        inner = [bm.verts.new((r1 * math.cos(a), r1 * math.sin(a), 0.7)) for a in [k * math.tau / n for k in range(n)]]
+        rim = [bm.faces.new((rings[1][i], rings[1][(i+1)%n], inner[(i+1)%n], inner[i])) for i in range(n)]
+        common.paint_faces(bm, rim, "stone", 0.35)
+    # dark water + roof posts + gable
+    water = common.add_box(bm, (0, 0, 0.5), (1.1, 1.1, 0.02))
+    common.paint_faces(bm, water, "grip", 0.1)
+    for sx in (-1, 1):
+        post = common.add_box(bm, (sx * 0.6, 0, 1.6), (0.1, 0.1, 1.8))
+        common.paint_faces(bm, post, "wood", 0.35)
+    for sx in (-1, 1):
+        roof = common.add_box(bm, (sx * 0.4, 0, 2.6), (0.95, 1.4, 0.08))
+        vs = set(v for f in roof for v in f.verts)
+        import bmesh as _b
+        _b.ops.rotate(bm, verts=list(vs), cent=(sx * 0.4, 0, 2.6), matrix=Matrix.Rotation(sx * math.radians(32), 4, "Y"))
+        common.paint_faces(bm, roof, "cloth", 0.4)
+    return _finish("well", bm)
+
+
+def wall_segment(seed: int = 0):
+    bm = bmesh.new()
+    w = common.add_box(bm, (0, 0, 1.5), (4.0, 0.7, 3.0))
+    common.paint_faces(bm, w, "stone", 0.48)
+    # crenellations
+    for x in (-1.4, -0.4, 0.6, 1.6):
+        c = common.add_box(bm, (x, 0, 3.25), (0.55, 0.7, 0.5))
+        common.paint_faces(bm, c, "stone", 0.42)
+    return _finish("wall_segment", bm)
+
+
+def gate_tower(seed: int = 0):
+    bm = bmesh.new()
+    for sx in (-1, 1):
+        t = common.add_box(bm, (sx * 2.0, 0, 2.5), (1.4, 1.4, 5.0))
+        common.paint_faces(bm, t, "stone", 0.45)
+        for x in (-0.4, 0.4):
+            c = common.add_box(bm, (sx * 2.0 + x, 0, 5.3), (0.45, 1.4, 0.5))
+            common.paint_faces(bm, c, "stone", 0.4)
+    arch = common.add_box(bm, (0, 0, 4.2), (2.8, 1.2, 0.8))
+    common.paint_faces(bm, arch, "stone", 0.45)
+    return _finish("gate_tower", bm)
+
+
+def lamp_post(seed: int = 0):
+    bm = bmesh.new()
+    post = _tube_simple(bm, (0, 0, 0), (0, 0, 2.2), 0.06, 0.05, n=6)
+    common.paint_faces(bm, post, "grip", 0.3)
+    cage = common.add_box(bm, (0, 0, 2.35), (0.22, 0.22, 0.3))
+    common.paint_faces(bm, cage, "accent", 0.5)
+    flame = _blob(bm, (0, 0, 2.35), 0.1, 1.4, common.rng(seed, "lamp"))
+    common.paint_faces(bm, flame, "gold", 0.95)
+    return _finish("lamp_post", bm)
+
+
 # ---- town & scenery --------------------------------------------------------
 
 def _house_core(bm, w, d, h, wall_row, wall_t, roof_row, roof_t):
-    """Walls + gable roof + door + windows. Door faces -Y."""
+    """Walls + gable roof + timber frame + door + shuttered windows. Door faces -Y."""
     walls = common.add_box(bm, (0, 0, h / 2), (w, d, h))
     common.paint_faces(bm, walls, wall_row, wall_t)
-    # corner beams
+    # corner posts
     for sx in (-1, 1):
         for sy in (-1, 1):
-            bf = common.add_box(bm, (sx * (w / 2 - 0.08), sy * (d / 2 - 0.08), h / 2), (0.18, 0.18, h))
-            common.paint_faces(bm, bf, "wood", 0.35)
+            bf = common.add_box(bm, (sx * (w / 2 - 0.08), sy * (d / 2 - 0.08), h / 2), (0.2, 0.2, h))
+            common.paint_faces(bm, bf, "wood", 0.3)
+    # timber frame: mid rail + diagonal braces on the front/back
+    for sy in (-1, 1):
+        rail = common.add_box(bm, (0, sy * (d / 2 + 0.01), h * 0.5), (w * 0.98, 0.07, 0.1))
+        common.paint_faces(bm, rail, "wood", 0.32)
+        top = common.add_box(bm, (0, sy * (d / 2 + 0.01), h - 0.06), (w * 0.98, 0.07, 0.1))
+        common.paint_faces(bm, top, "wood", 0.32)
+    # vertical studs on the side walls
+    for sx in (-1, 1):
+        for t in (-0.25, 0.25):
+            st = common.add_box(bm, (sx * (w / 2 + 0.01), t * d, h / 2), (0.07, 0.1, h * 0.95))
+            common.paint_faces(bm, st, "wood", 0.34)
     # gable roof: two sloped slabs meeting at a ridge
     rise = h * 0.55
     for sx in (-1, 1):
@@ -460,13 +559,31 @@ def _house_core(bm, w, d, h, wall_row, wall_t, roof_row, roof_t):
         common.paint_faces(bm, slab, roof_row, roof_t)
     gable = common.add_box(bm, (0, 0, h + rise * 0.26), (w * 0.86, d * 0.9, rise * 0.52))
     common.paint_faces(bm, gable, wall_row, wall_t - 0.06)
-    # door
-    df = common.add_box(bm, (0, -d / 2 - 0.02, 0.95), (0.8, 0.1, 1.9))
+    # door + plank frame + step
+    dfr = common.add_box(bm, (0, -d / 2 - 0.03, 1.0), (0.95, 0.06, 2.05))
+    common.paint_faces(bm, dfr, "wood", 0.28)
+    df = common.add_box(bm, (0, -d / 2 - 0.05, 0.95), (0.78, 0.08, 1.88))
     common.paint_faces(bm, df, "grip", 0.35)
-    # windows
+    step = common.add_box(bm, (0, -d / 2 - 0.22, 0.08), (1.0, 0.4, 0.16))
+    common.paint_faces(bm, step, "stone", 0.45)
+    # shuttered windows with sills
     for sx in (-1, 1):
-        wf = common.add_box(bm, (sx * w * 0.28, -d / 2 - 0.02, 1.5), (0.5, 0.08, 0.5))
+        wf = common.add_box(bm, (sx * w * 0.3, -d / 2 - 0.03, 1.55), (0.52, 0.06, 0.52))
         common.paint_faces(bm, wf, "gold", 0.85)
+        for off in (-0.33, 0.33):  # shutters
+            sh = common.add_box(bm, (sx * w * 0.3 + off, -d / 2 - 0.07, 1.55), (0.14, 0.06, 0.56))
+            common.paint_faces(bm, sh, "cloth", 0.4)
+        sill = common.add_box(bm, (sx * w * 0.3, -d / 2 - 0.1, 1.27), (0.62, 0.14, 0.07))
+        common.paint_faces(bm, sill, "wood", 0.3)
+    # eaves overhang beam
+    for sy in (-1, 1):
+        ea = common.add_box(bm, (0, sy * (d / 2 + 0.12), h + 0.02), (w + 0.3, 0.12, 0.1))
+        common.paint_faces(bm, ea, "wood", 0.3)
+    # chimney
+    ch = common.add_box(bm, (w * 0.32, d * 0.2, h + rise * 0.9), (0.5, 0.5, rise * 1.2 + 0.4))
+    common.paint_faces(bm, ch, "stone", 0.4)
+    cap = common.add_box(bm, (w * 0.32, d * 0.2, h + rise * 1.5 + 0.4), (0.62, 0.62, 0.12))
+    common.paint_faces(bm, cap, "stone", 0.32)
 
 
 def house(seed: int = 0):
@@ -580,6 +697,11 @@ ALL = {
     "reeds": lambda: reeds(4),
     "sunbloom_patch": lambda: sunbloom(5),
     "grass_tuft": lambda: grass_tuft(9),
+    "market_stall": lambda: market_stall(61),
+    "well": lambda: well(),
+    "wall_segment": lambda: wall_segment(),
+    "gate_tower": lambda: gate_tower(),
+    "lamp_post": lambda: lamp_post(62),
     "bush": lambda: bush(51),
     "fern": lambda: fern(52),
     "mushrooms": lambda: mushrooms(53),

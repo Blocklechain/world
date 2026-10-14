@@ -4,7 +4,7 @@ import { SPAWN } from "./world.js";
 import type { Appearance } from "./appearance.js";
 
 export interface Building {
-  kind: "house" | "house_stone" | "smithy";
+  kind: "house" | "house_stone" | "smithy" | "market_stall" | "well" | "wall_segment" | "gate_tower" | "lamp_post";
   x: number;
   z: number;
   yaw: number;
@@ -21,6 +21,54 @@ export interface TownDef {
 
 const H = SPAWN; // Hearthmere square
 
+export interface Road {
+  points: { x: number; z: number }[];
+  width: number;
+}
+
+/** Road network: ribbons flattened into the terrain and painted as dirt. */
+export const ROADS: Road[] = [
+  // Hearthmere south gate -> Alderford
+  { width: 4.5, points: [
+    { x: H.x, z: H.z - 46 }, { x: H.x - 40, z: H.z - 20 }, { x: 460, z: 760 }, { x: 360, z: 800 }, { x: 330, z: 820 },
+  ] },
+  // Hearthmere -> Brightshear (north)
+  { width: 4.5, points: [
+    { x: H.x, z: H.z + 30 }, { x: H.x + 20, z: 1000 }, { x: 800, z: 1200 }, { x: 820, z: 1370 },
+  ] },
+  // Hearthmere east -> Gloamdeep cave road
+  { width: 4.0, points: [
+    { x: H.x + 28, z: H.z }, { x: 1000, z: 820 }, { x: 1180, z: 980 }, { x: 1225, z: 1012 },
+  ] },
+];
+
+/** Distance from (x,z) to the nearest road centerline, and that road's width. */
+export function roadInfluence(x: number, z: number): { dist: number; width: number } {
+  let best = Infinity;
+  let w = 0;
+  for (const road of ROADS) {
+    for (let i = 0; i < road.points.length - 1; i++) {
+      const a = road.points[i]!;
+      const b = road.points[i + 1]!;
+      const d = _segDist(x, z, a.x, a.z, b.x, b.z);
+      if (d < best) {
+        best = d;
+        w = road.width;
+      }
+    }
+  }
+  return { dist: best, width: w };
+}
+
+function _segDist(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const len2 = dx * dx + dz * dz || 1;
+  let t = ((px - ax) * dx + (pz - az) * dz) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), pz - (az + t * dz));
+}
+
 export const TOWNS: TownDef[] = [
   {
     id: "hearthmere",
@@ -28,13 +76,30 @@ export const TOWNS: TownDef[] = [
     x: H.x,
     z: H.z,
     buildings: [
-      { kind: "house", x: H.x - 18, z: H.z - 14, yaw: 0.5, scale: 1 },
-      { kind: "house", x: H.x - 24, z: H.z + 6, yaw: 1.8, scale: 1.1 },
-      { kind: "house_stone", x: H.x - 8, z: H.z + 22, yaw: 3.3, scale: 1 },
-      { kind: "house", x: H.x + 14, z: H.z + 18, yaw: 4.2, scale: 0.95 },
-      { kind: "smithy", x: H.x + 22, z: H.z + 2, yaw: -1.6, scale: 1 },
-      { kind: "house_stone", x: H.x + 18, z: H.z - 18, yaw: 2.4, scale: 1.05 },
-      { kind: "house", x: H.x - 2, z: H.z - 24, yaw: 0.1, scale: 1 },
+      // central plaza: well + market stalls + lamps
+      { kind: "well", x: H.x, z: H.z + 6, yaw: 0, scale: 1 },
+      { kind: "market_stall", x: H.x - 7, z: H.z + 4, yaw: 1.2, scale: 1 },
+      { kind: "market_stall", x: H.x + 7, z: H.z + 5, yaw: -1.3, scale: 1 },
+      { kind: "lamp_post", x: H.x - 4, z: H.z - 3, yaw: 0, scale: 1 },
+      { kind: "lamp_post", x: H.x + 5, z: H.z - 3, yaw: 0, scale: 1 },
+      { kind: "lamp_post", x: H.x - 5, z: H.z + 14, yaw: 0, scale: 1 },
+      { kind: "lamp_post", x: H.x + 6, z: H.z + 14, yaw: 0, scale: 1 },
+      // houses in a loose ring facing the plaza
+      { kind: "house", x: H.x - 22, z: H.z - 16, yaw: 0.6, scale: 1 },
+      { kind: "house", x: H.x - 28, z: H.z + 4, yaw: 1.7, scale: 1.1 },
+      { kind: "house_stone", x: H.x - 20, z: H.z + 24, yaw: 2.4, scale: 1 },
+      { kind: "house", x: H.x + 6, z: H.z + 28, yaw: 3.5, scale: 0.95 },
+      { kind: "house", x: H.x + 20, z: H.z + 20, yaw: -2.4, scale: 1.05 },
+      { kind: "smithy", x: H.x + 24, z: H.z + 2, yaw: -1.6, scale: 1 },
+      { kind: "house_stone", x: H.x + 22, z: H.z - 18, yaw: 2.4, scale: 1.05 },
+      { kind: "house", x: H.x + 2, z: H.z - 28, yaw: 0.1, scale: 1 },
+      { kind: "house", x: H.x - 14, z: H.z - 28, yaw: 0.3, scale: 0.95 },
+      // south gate on the road into town
+      { kind: "gate_tower", x: H.x, z: H.z - 42, yaw: 0, scale: 1 },
+      { kind: "wall_segment", x: H.x - 7, z: H.z - 42, yaw: 0, scale: 1 },
+      { kind: "wall_segment", x: H.x + 7, z: H.z - 42, yaw: 0, scale: 1 },
+      { kind: "wall_segment", x: H.x - 13.5, z: H.z - 42, yaw: 0, scale: 1 },
+      { kind: "wall_segment", x: H.x + 13.5, z: H.z - 42, yaw: 0, scale: 1 },
     ],
   },
   {
