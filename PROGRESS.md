@@ -1,5 +1,22 @@
 # PROGRESS
 
+## 2026-10-14 mega-session — the game took shape
+All live at https://world.blockle.org (deploy per phase):
+- **Island of Veyra**: continuous 1536x2048m island in a deep ocean ring (p6 superellipse + noisy coast), beaches/sand splat layer, animated depth-tinted waves, snowcapped Worldspine, Greywater lake; swimming (0.45x speed, chest-deep float) in any shallow water.
+- **Graphics**: ACES tonemap + vignette, sky dome, warm sun + PCF shadows, 5-texture splat terrain, denser layered-canopy forests, grass tufts.
+- **Characters**: 3 races x 2 body types with faces (eyes/brow/nose/mouth, elf ears, dwarf noses), 3 hair styles + 2 beards x 5 colors, chip-based creation screen at first signup; appearance on account, rendered for everyone.
+- **Combat**: 9 monster species, 651 world spawns by region table, aggro/chase/leash AI, melee/archery/magic styles (style selector UI), hit/damage rolls, drops, damage splats, arrow/bolt projectiles, player HP bar, death -> hearth respawn. Colyseus Encoder.BUFFER_SIZE raised to 512KB (651-monster initial state overflowed 8KB default — symptom: silent partial sync).
+- **Fishing** (9th skill): 3 fish species from rippling water spots scattered along shores/lakes.
+- **Skill books**: tap a skill -> level-by-level unlock list (data-driven from species tables).
+- **Towns/NPCs/quests**: Hearthmere + Alderford + Brightshear with generated cottages/smithy; 6 NPCs with dialogue; 5 teaching quests with progress tracking + XP rewards; quest log; banker NPC opens bank.
+- **World map**: baked from heightfield (render-map.ts), fullscreen overlay with towns + live player dot.
+- **Auth hardening**: HMAC stateless session tokens (logins survive restarts — memory sessions silently downgraded reconnects to guests before).
+- Dev gotcha: killing ports with `lsof -ti:2567` also matched vite's proxy sockets and killed the dev server — use `-sTCP:LISTEN`.
+
+### Known issues / next
+- Stray stretched-geometry artifact seen near Hearthmere (likely a degenerate thin-instance matrix) — investigate.
+- Caves/dungeons interiors (instanced rooms with loading), prop collision + physics feel, sailing + dynamic ships on the wave system, dedicated combat/fishing/swim-polish clips, equipment/smithing/cooking, asset remodel round 2 (houses brighter, creature polish), NPC idle anims. Old base_body.glb removable after clients cache-bust.
+
 ## Current milestone: M0 — Greybox
 
 ### Done
