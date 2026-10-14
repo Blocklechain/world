@@ -1,0 +1,11 @@
+{
+  "name": "@world/blockle-wasm-node",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WASM bindings for Blockle post-quantum (ML-DSA-44) keys, addresses, signing and transaction building — used by the browser-extension wallet. (vendored from Blocklechain/blockle blockle-wasm)",
+  "main": "blockle_wasm.js",
+  "types": "blockle_wasm.d.ts",
+  "files": [
+    "*"
+  ]
+}

@@ -1,8 +1,9 @@
 """Animation clips for WORLD_RIG, authored procedurally.
 
 Each clip is a bpy Action; all clips are pushed onto NLA tracks so the glTF
-exporter emits every clip from one file. Sampled sinusoid keyframes — chunky
-rigid-rig motion suits the low-poly style.
+exporter emits every clip from one file. Densely sampled layered sinusoids:
+gaits get hip sway, shoulder counter-rotation, foot roll and head
+stabilization on top of the limb swings.
 
 v1 clips here: idle, walk, run. (attack/cast/gather/hit/death follow.)
 """
@@ -11,6 +12,7 @@ import math
 import bpy
 
 FPS = 30
+TAU = 2 * math.pi
 
 
 def _key(rig, frame, bone, rot=None, loc=None):
@@ -29,7 +31,6 @@ def _new_action(rig, name):
     rig.animation_data_create()
     act = bpy.data.actions.new(name)
     rig.animation_data.action = act
-    # reset pose
     for pb in rig.pose.bones:
         pb.rotation_euler = (0, 0, 0)
         pb.location = (0, 0, 0)
@@ -37,11 +38,10 @@ def _new_action(rig, name):
 
 
 def _cycle(rig, name, length, step, pose_at):
-    """Build a looping action: pose_at(phase in [0,1)) sets the pose, keyed every `step` frames."""
+    """Looping action: pose_at(rig, frame, phase in [0,1)) keyed every `step` frames."""
     act = _new_action(rig, name)
     for f in range(0, length + 1, step):
-        phase = (f % length) / length
-        pose_at(rig, f, phase)
+        pose_at(rig, f, (f % length) / length)
     act.use_frame_range = True
     act.frame_start = 0
     act.frame_end = length
@@ -50,47 +50,70 @@ def _cycle(rig, name, length, step, pose_at):
 
 def build_idle(rig):
     def pose(rig, f, t):
-        s = math.sin(2 * math.pi * t)
-        _key(rig, f, "chest", rot=(0.025 * s, 0, 0))
-        _key(rig, f, "head", rot=(-0.02 * s, 0, 0.01 * math.sin(2 * math.pi * t + 1)))
-        _key(rig, f, "upper_arm.L", rot=(0.03 * s, 0, 0.04))
-        _key(rig, f, "upper_arm.R", rot=(0.03 * s, 0, -0.04))
-        _key(rig, f, "hips", loc=(0, 0, 0.006 * s))
-    return _cycle(rig, "idle", 90, 15, pose)
+        breath = math.sin(TAU * t)          # one breath per loop
+        sway = math.sin(TAU * t * 2 + 1.3)  # slow secondary sway
+        _key(rig, f, "chest", rot=(0.030 * breath, 0, 0.012 * sway))
+        _key(rig, f, "spine", rot=(0.012 * breath, 0, -0.008 * sway))
+        _key(rig, f, "neck", rot=(-0.015 * breath, 0, 0))
+        _key(rig, f, "head", rot=(-0.015 * breath, 0.01 * sway, 0))
+        _key(rig, f, "shoulder.L", rot=(0, 0.03 * breath, 0))
+        _key(rig, f, "shoulder.R", rot=(0, -0.03 * breath, 0))
+        _key(rig, f, "upper_arm.L", rot=(0.035 * breath, 0, 0.05 + 0.012 * sway))
+        _key(rig, f, "upper_arm.R", rot=(0.035 * breath, 0, -0.05 - 0.012 * sway))
+        _key(rig, f, "forearm.L", rot=(-0.10 - 0.02 * breath, 0, 0))
+        _key(rig, f, "forearm.R", rot=(-0.10 - 0.02 * breath, 0, 0))
+        _key(rig, f, "hips", loc=(0, 0, 0.007 * breath))
+    return _cycle(rig, "idle", 120, 6, pose)
 
 
-def _gait(rig, name, length, swing, arm_swing, knee, bob, lean):
+def _gait(rig, name, length, swing, arm_swing, knee, bob, lean, sway):
+    """One full stride cycle (L then R). Layered body mechanics on top of limb swings."""
+
     def pose(rig, f, t):
-        s = math.sin(2 * math.pi * t)
-        c = math.cos(2 * math.pi * t)
+        s = math.sin(TAU * t)
+        c = math.cos(TAU * t)
+        s2 = math.sin(2 * TAU * t)  # double-frequency: two steps per cycle
+
+        # legs: thigh swing, knee bends on the trailing/passing leg, foot roll
         _key(rig, f, "thigh.L", rot=(swing * s, 0, 0))
         _key(rig, f, "thigh.R", rot=(-swing * s, 0, 0))
-        # knee bends as the leg swings back/through
-        _key(rig, f, "shin.L", rot=(-knee * max(0.0, -c), 0, 0))
-        _key(rig, f, "shin.R", rot=(-knee * max(0.0, c), 0, 0))
-        _key(rig, f, "foot.L", rot=(0.3 * swing * s, 0, 0))
-        _key(rig, f, "foot.R", rot=(-0.3 * swing * s, 0, 0))
-        _key(rig, f, "upper_arm.L", rot=(-arm_swing * s, 0, 0.05))
-        _key(rig, f, "upper_arm.R", rot=(arm_swing * s, 0, -0.05))
-        _key(rig, f, "forearm.L", rot=(-0.3 * arm_swing * (1 + s) / 2, 0, 0))
-        _key(rig, f, "forearm.R", rot=(-0.3 * arm_swing * (1 - s) / 2, 0, 0))
-        _key(rig, f, "chest", rot=(lean, 0, -0.05 * s))
-        _key(rig, f, "hips", loc=(0, 0, -bob * abs(c)))
-    return _cycle(rig, name, length, max(2, length // 8), pose)
+        _key(rig, f, "shin.L", rot=(-knee * max(0.0, -c) - 0.08, 0, 0))
+        _key(rig, f, "shin.R", rot=(-knee * max(0.0, c) - 0.08, 0, 0))
+        # heel strike (toes up) on the forward swing, toe-off (toes down) behind
+        _key(rig, f, "foot.L", rot=(0.45 * swing * s + 0.15 * knee * max(0.0, -c), 0, 0))
+        _key(rig, f, "foot.R", rot=(-0.45 * swing * s + 0.15 * knee * max(0.0, c), 0, 0))
+
+        # pelvis: lateral sway toward the planted foot + yaw with the stride
+        _key(rig, f, "hips", rot=(0, 0.5 * sway * s, 0.6 * sway * s), loc=(0.012 * s, 0, -bob * abs(c)))
+
+        # torso: lean + counter-rotation against the hips, head stabilizes
+        _key(rig, f, "spine", rot=(lean * 0.4, -0.3 * sway * s, -0.4 * sway * s))
+        _key(rig, f, "chest", rot=(lean, -0.5 * sway * s, -0.3 * sway * s))
+        _key(rig, f, "neck", rot=(-lean * 0.5, 0.2 * sway * s, 0))
+        _key(rig, f, "head", rot=(-lean * 0.4 + 0.02 * s2, 0.3 * sway * s, 0))
+
+        # arms: counter-swing with a resting elbow bend that deepens on the back swing
+        _key(rig, f, "shoulder.L", rot=(0, -0.25 * sway * s, 0))
+        _key(rig, f, "shoulder.R", rot=(0, -0.25 * sway * s, 0))
+        _key(rig, f, "upper_arm.L", rot=(-arm_swing * s, 0, 0.06))
+        _key(rig, f, "upper_arm.R", rot=(arm_swing * s, 0, -0.06))
+        _key(rig, f, "forearm.L", rot=(-0.25 - 0.55 * arm_swing * (1 + s) / 2, 0, 0))
+        _key(rig, f, "forearm.R", rot=(-0.25 - 0.55 * arm_swing * (1 - s) / 2, 0, 0))
+
+    return _cycle(rig, name, length, 2, pose)
 
 
 def build_walk(rig):
-    return _gait(rig, "walk", 30, swing=0.55, arm_swing=0.35, knee=0.8, bob=0.025, lean=0.04)
+    return _gait(rig, "walk", 32, swing=0.55, arm_swing=0.32, knee=0.85, bob=0.025, lean=0.05, sway=0.10)
 
 
 def build_run(rig):
-    return _gait(rig, "run", 18, swing=0.95, arm_swing=0.75, knee=1.25, bob=0.05, lean=0.18)
+    return _gait(rig, "run", 18, swing=0.95, arm_swing=0.70, knee=1.30, bob=0.055, lean=0.20, sway=0.14)
 
 
 def build_all(rig):
     bpy.context.scene.render.fps = FPS
     acts = [build_idle(rig), build_walk(rig), build_run(rig)]
-    # push every clip to its own NLA track so the glTF exporter emits them all
     ad = rig.animation_data
     ad.action = None
     for t in list(ad.nla_tracks):
