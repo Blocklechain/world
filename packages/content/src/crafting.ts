@@ -48,6 +48,16 @@ export const RECIPES: Record<string, Recipe> = Object.fromEntries(
       { id: "forge_mithril_sword", station: "anvil", skill: "smithing", level: 41, xp: 130, inputs: { mithril_bar: 2 }, output: "mithril_sword", verb: "Forge" },
       { id: "forge_adamant_sword", station: "anvil", skill: "smithing", level: 56, xp: 170, inputs: { adamant_bar: 2 }, output: "adamant_sword", verb: "Forge" },
       { id: "forge_runic_sword", station: "anvil", skill: "smithing", level: 60, xp: 240, inputs: { runic_bar: 2 }, output: "runic_sword", verb: "Forge" },
+      // armor (anvil)
+      ...["copper", "iron", "steel", "mithril", "adamant", "runic"].flatMap((t, i) => {
+        const lv = [1, 16, 31, 41, 56, 60][i]!;
+        const bar = `${t}_bar`;
+        return [
+          { id: `forge_${t}_helm`, station: "anvil", skill: "smithing", level: lv + 2, xp: 20 + i * 28, inputs: { [bar]: 1 }, output: `${t}_helm`, verb: "Forge" },
+          { id: `forge_${t}_platelegs`, station: "anvil", skill: "smithing", level: lv + 4, xp: 38 + i * 45, inputs: { [bar]: 2 }, output: `${t}_platelegs`, verb: "Forge" },
+          { id: `forge_${t}_platebody`, station: "anvil", skill: "smithing", level: lv + 6, xp: 60 + i * 65, inputs: { [bar]: 3 }, output: `${t}_platebody`, verb: "Forge" },
+        ];
+      }),
       // cooking (rides the crafting skill in v1)
       { id: "cook_darter", station: "cookfire", skill: "crafting", level: 1, xp: 18, inputs: { silver_darter: 1 }, output: "cooked_darter", verb: "Roast" },
       { id: "cook_mudwhisker", station: "cookfire", skill: "crafting", level: 14, xp: 35, inputs: { mudwhisker: 1 }, output: "cooked_mudwhisker", verb: "Roast" },
@@ -59,4 +69,9 @@ export const RECIPES: Record<string, Recipe> = Object.fromEntries(
 /** Weapon damage bonus by tier (added to max hit for melee). */
 export function weaponBonus(tier: number): number {
   return tier * 2.5;
+}
+
+/** Armor rating from equipped head/body/legs tiers — raises effective defence. */
+export function armorRating(tiers: number[]): number {
+  return tiers.reduce((a, t) => a + t * 2, 0);
 }

@@ -48,6 +48,7 @@ export interface GameState {
   bankOpen: boolean;
   bank: Record<string, number>;
   quests: Record<string, QuestProgress>;
+  equipment: { weapon: string | null; head: string | null; body: string | null; legs: string | null };
 }
 
 type Listener = () => void;
@@ -75,7 +76,7 @@ export interface Net {
   onNpc(cb: (npc: NpcPayload) => void): void;
   craft(recipeId: string): void;
   equip(slot: number): void;
-  unequip(): void;
+  unequip(gearSlot?: string): void;
   eat(slot: number): void;
   boardBoat(x: number, z: number): void;
   dropSlot(slot: number): void;
@@ -100,7 +101,15 @@ export async function connect(
   const client = new Client(`${proto}://${location.host}/colyseus`);
   const room = await client.joinOrCreate(roomName, { zone: DEFAULT_ZONE, name, token, fromMap });
 
-  const game: GameState = { address: null, skills: null, inv: [], bankOpen: false, bank: {}, quests: {} };
+  const game: GameState = {
+    address: null,
+    skills: null,
+    inv: [],
+    bankOpen: false,
+    bank: {},
+    quests: {},
+    equipment: { weapon: null, head: null, body: null, legs: null },
+  };
   const chatCbs: ((l: ChatLine) => void)[] = [];
   const xpCbs: ((d: XpDrop) => void)[] = [];
   const msgCbs: ((t: string) => void)[] = [];
@@ -141,6 +150,10 @@ export async function connect(
     game.quests = m.quests;
     emitGame();
   });
+  room.onMessage("equipment", (m: { equipment: GameState["equipment"] }) => {
+    game.equipment = m.equipment;
+    emitGame();
+  });
 
   // depleted-node set lives in shared room state
   const depleted = () =>
@@ -162,7 +175,7 @@ export async function connect(
     onNpc: (cb) => npcCbs.push(cb),
     craft: (recipeId) => room.send("craft", { recipeId }),
     equip: (slot) => room.send("equip", { slot }),
-    unequip: () => room.send("unequip"),
+    unequip: (gearSlot) => room.send("unequip", { gearSlot }),
     eat: (slot) => room.send("eat", { slot }),
     boardBoat: (x, z) => room.send("boat:board", { x, z }),
     dropSlot: (slot) => room.send(MSG.invDrop, { slot }),

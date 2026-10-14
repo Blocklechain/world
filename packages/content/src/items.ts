@@ -10,7 +10,7 @@ export interface ItemDef {
   /** icon tint for the placeholder UI tiles */
   tint: string;
   /** equipable gear */
-  equip?: { slot: "weapon"; tier: number; model: string };
+  equip?: { slot: "weapon" | "head" | "body" | "legs"; tier: number; model?: string };
   /** food: hp restored when eaten */
   heal?: number;
 }
@@ -57,12 +57,23 @@ const WEAPONS: ItemDef[] = [
   { id: "adamant_sword", name: "Adamant sword", value: 520, tint: "#3e8e5a", stackable: false, equip: { slot: "weapon", tier: 5, model: "sword_arming_adamant_s1040" } },
   { id: "runic_sword", name: "Runic sword", value: 900, tint: "#7b4fd0", stackable: false, equip: { slot: "weapon", tier: 6, model: "sword_arming_runic_s1050" } },
 ];
+const TIER_NAMES = ["copper", "iron", "steel", "mithril", "adamant", "runic"];
+const TIER_TINTS = ["#b87333", "#8a8d91", "#b8c0c8", "#5b7fd4", "#3e8e5a", "#7b4fd0"];
+const ARMOR: ItemDef[] = TIER_NAMES.flatMap((t, i) => [
+  { id: `${t}_helm`, name: `${cap(t)} helm`, value: 25 * (i + 1), tint: TIER_TINTS[i]!, stackable: false, equip: { slot: "head", tier: i + 1, model: `helm_${t}` } },
+  { id: `${t}_platebody`, name: `${cap(t)} platebody`, value: 60 * (i + 1), tint: TIER_TINTS[i]!, stackable: false, equip: { slot: "body", tier: i + 1 } },
+  { id: `${t}_platelegs`, name: `${cap(t)} platelegs`, value: 40 * (i + 1), tint: TIER_TINTS[i]!, stackable: false, equip: { slot: "legs", tier: i + 1 } },
+]);
+function cap(s: string): string {
+  return s[0]!.toUpperCase() + s.slice(1);
+}
+
 const FOOD: ItemDef[] = [
   { id: "cooked_darter", name: "Roasted darter", value: 10, tint: "#d8b06a", stackable: false, heal: 7 },
   { id: "cooked_mudwhisker", name: "Roasted mudwhisker", value: 26, tint: "#b98b50", stackable: false, heal: 14 },
   { id: "cooked_emberfin", name: "Roasted emberfin", value: 60, tint: "#e08a4a", stackable: false, heal: 24 },
 ];
-for (const it of [...WEAPONS, ...FOOD]) ITEMS[it.id] = it;
+for (const it of [...WEAPONS, ...ARMOR, ...FOOD]) ITEMS[it.id] = it;
 
 export const INVENTORY_SLOTS = 28;
 export const BANK_SLOTS = 400;

@@ -12,8 +12,8 @@ import { BOAT_SPEED, ITEMS, WATER_LEVEL, activeMap, boatStateAt, decodeLook, map
 
 const WEAPON_MODELS: Record<string, string> = Object.fromEntries(
   Object.values(ITEMS)
-    .filter((i) => i.equip)
-    .map((i) => [i.id, i.equip!.model]),
+    .filter((i) => i.equip?.model)
+    .map((i) => [i.id, i.equip!.model!]),
 );
 import { RUN_SPEED } from "@world/shared";
 
@@ -26,6 +26,7 @@ interface PlayerLike {
   action: string;
   look: string;
   weapon: string;
+  helm: string;
   boat: boolean;
 }
 
@@ -88,6 +89,11 @@ export class PlayerAvatar {
   private weaponId = "";
   boatMesh: Mesh | null = null;
   private boatLoading = false;
+  private hairMesh: Mesh | null = null;
+  private helmMesh: Mesh | null = null;
+  private helmId = "";
+  private headNode2: TransformNode | null = null;
+  private helmScale = 1;
 
   constructor(
     private scene: Scene,
@@ -128,8 +134,13 @@ export class PlayerAvatar {
         mesh.parent = headNode;
         mesh.position.set(0, yOff, 0);
         mesh.scaling.setAll(scale);
+        if (name.startsWith("hair_")) this.hairMesh = mesh;
       };
-      if (look.hair !== "bald") await mount(`hair_${look.hair}_${look.hairColor}`, 0.14 * scale);
+      this.headNode2 = headNode;
+      this.helmScale = scale;
+      if (look.hair !== "bald") {
+        await mount(`hair_${look.hair}_${look.hairColor}`, 0.14 * scale);
+      }
       if (look.beard !== "none") await mount(`beard_${look.beard}_${look.hairColor}`, 0.05 * scale);
     }
 
@@ -158,6 +169,27 @@ export class PlayerAvatar {
       mesh.parent = this.root;
       mesh.position.set(0, -0.12, 0);
       this.boatMesh = mesh;
+    });
+  }
+
+  setHelm(itemId: string) {
+    if (itemId === this.helmId) return;
+    this.helmId = itemId;
+    this.helmMesh?.dispose();
+    this.helmMesh = null;
+    this.hairMesh?.setEnabled(!itemId);
+    const model = itemId ? ITEMS[itemId]?.equip?.model : undefined;
+    if (!model || !this.headNode2) return;
+    void this.lib2.gear(model).then((mesh) => {
+      if (!mesh) return;
+      if (this.disposed || this.helmId !== itemId) {
+        mesh.dispose();
+        return;
+      }
+      mesh.parent = this.headNode2;
+      mesh.position.set(0, 0.13 * this.helmScale, 0);
+      mesh.scaling.setAll(this.helmScale);
+      this.helmMesh = mesh;
     });
   }
 
@@ -292,6 +324,7 @@ export class PlayerRenderer {
       }
 
       av.setWeapon(p.weapon ?? "");
+      av.setHelm(p.helm ?? "");
       const action = p.boat ? "idle" : p.action === "swim" ? "swim" : isMoving ? "run" : p.action || "idle";
       av.play(action, action === "run" ? 1.35 : 1);
     });

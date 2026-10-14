@@ -13,6 +13,7 @@ import {
   QUESTS,
   RECIPES,
   STATIONS,
+  armorRating,
   weaponBonus,
   MAPS,
   PORTALS,
@@ -68,6 +69,8 @@ export class PlayerState extends Schema {
   /** equipped weapon itemId ("" = none) */
   @type("string") weapon = "";
   @type("boolean") boat = false;
+  /** equipped helm itemId ("" = none) — rendered on the head */
+  @type("string") helm = "";
   @type("int16") hp = 30;
   @type("int16") maxHp = 30;
 }
@@ -340,28 +343,35 @@ export class ZoneRoom extends Room<ZoneState> {
       const itemId = prof.inv[slot];
       const def = itemId ? ITEMS[itemId] : undefined;
       if (!itemId || !def?.equip) return;
-      prof.inv[slot] = prof.equipment.weapon; // swap (may be null)
-      prof.equipment.weapon = itemId;
-      p.weapon = itemId;
+      const gearSlot = def.equip.slot;
+      prof.inv[slot] = prof.equipment[gearSlot]; // swap (may be null)
+      prof.equipment[gearSlot] = itemId;
+      if (gearSlot === "weapon") p.weapon = itemId;
+      if (gearSlot === "head") p.helm = itemId;
       touchProfile(prof.address);
       client.send("inv", { inv: prof.inv });
-      client.send("msg", { text: `Wielding the ${def.name}.` });
+      client.send("equipment", { equipment: prof.equipment });
+      client.send("msg", { text: `${gearSlot === "weapon" ? "Wielding" : "Wearing"} the ${def.name}.` });
     });
 
-    this.onMessage("unequip", (client) => {
+    this.onMessage("unequip", (client, msg: { gearSlot?: string }) => {
       const p = this.state.players.get(client.sessionId);
       const s = this.sessions.get(client.sessionId);
-      if (!p || !s || !s.profile.equipment.weapon) return;
+      const gearSlot = String(msg?.gearSlot ?? "weapon") as "weapon" | "head" | "body" | "legs";
+      if (!p || !s || !["weapon", "head", "body", "legs"].includes(gearSlot)) return;
+      if (!s.profile.equipment[gearSlot]) return;
       const slot = freeSlot(s.profile);
       if (slot < 0) {
         client.send("msg", { text: "Your pack is full." });
         return;
       }
-      s.profile.inv[slot] = s.profile.equipment.weapon;
-      s.profile.equipment.weapon = null;
-      p.weapon = "";
+      s.profile.inv[slot] = s.profile.equipment[gearSlot];
+      s.profile.equipment[gearSlot] = null;
+      if (gearSlot === "weapon") p.weapon = "";
+      if (gearSlot === "head") p.helm = "";
       touchProfile(s.profile.address);
       client.send("inv", { inv: s.profile.inv });
+      client.send("equipment", { equipment: s.profile.equipment });
     });
 
     this.onMessage("eat", (client, msg: { slot?: number }) => {
@@ -476,6 +486,7 @@ export class ZoneRoom extends Room<ZoneState> {
     p.name = name;
     p.look = encodeLook(account?.appearance ?? randomLook(address));
     p.weapon = profile.equipment.weapon ?? "";
+    p.helm = profile.equipment.head ?? "";
     p.maxHp = maxHpForDefence(levelForXp(profile.skills.defence));
     p.hp = p.maxHp;
     // arriving through a portal lands you at its mouth on this side
@@ -501,6 +512,7 @@ export class ZoneRoom extends Room<ZoneState> {
 
     client.send("profile", { address, skills: profile.skills, inv: profile.inv, bankPos: BANK_POS });
     client.send("quests", { quests: profile.quests });
+    client.send("equipment", { equipment: profile.equipment });
     this.broadcast(EVT.system, { text: `${p.name} has arrived.` }, { except: client });
   }
 
@@ -864,7 +876,13 @@ export class ZoneRoom extends Room<ZoneState> {
     const s = this.sessions.get(sid);
     if (!s) return;
     const defLevel = levelForXp(s.profile.skills.defence);
-    const hit = Math.random() < hitChance(sp.attack, defLevel + 6);
+    const eq = s.profile.equipment;
+    const armor = armorRating(
+      [eq.head, eq.body, eq.legs]
+        .map((id) => (id ? ITEMS[id]?.equip?.tier ?? 0 : 0))
+        .filter((t) => t > 0),
+    );
+    const hit = Math.random() < hitChance(sp.attack, defLevel + 6 + armor);
     const dmg = hit ? rollDamage(sp.dmin, sp.dmax) : 0;
     this.broadcast("fx", { kind: "monsterAttack", monsterId, sid, dmg });
     if (!hit || dmg === 0) return;

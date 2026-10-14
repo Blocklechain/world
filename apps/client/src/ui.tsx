@@ -424,13 +424,17 @@ function HudInner({
       {panel === "inv" && (
         <div class="panelbox inv">
           <h3>Pack</h3>
-          {weapon && (
-            <div class="equipped">
-              <span class="tintdot" style={{ background: ITEMS[weapon]?.tint }} />
-              <span class="nm">{ITEMS[weapon]?.name}</span>
-              <button onClick={() => net.unequip()}>Unequip</button>
-            </div>
-          )}
+          {(["weapon", "head", "body", "legs"] as const).map((gs) => {
+            const id = g.equipment[gs];
+            if (!id) return null;
+            return (
+              <div key={gs} class="equipped">
+                <span class="tintdot" style={{ background: ITEMS[id]?.tint }} />
+                <span class="nm">{ITEMS[id]?.name}</span>
+                <button onClick={() => net.unequip(gs)}>Unequip</button>
+              </div>
+            );
+          })}
           <div class="grid">
             {g.inv.map((id, slot) => (
               <div

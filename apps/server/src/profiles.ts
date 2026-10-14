@@ -15,7 +15,7 @@ export interface Profile {
   bank: Record<string, number>;
   /** questId -> progress */
   quests: Record<string, { n: number; state: "active" | "done" | "claimed" }>;
-  equipment: { weapon: string | null };
+  equipment: { weapon: string | null; head: string | null; body: string | null; legs: string | null };
   pos?: { map: string; x: number; z: number };
 }
 
@@ -39,7 +39,10 @@ export function loadProfile(address: string, name: string): Profile {
     p.inv = Array.from({ length: INVENTORY_SLOTS }, (_, i) => p!.inv?.[i] ?? null);
     p.bank ??= {};
     p.quests ??= {};
-    p.equipment ??= { weapon: null };
+    p.equipment ??= { weapon: null, head: null, body: null, legs: null };
+    p.equipment.head ??= null;
+    p.equipment.body ??= null;
+    p.equipment.legs ??= null;
   } catch {
     p = {
       address,
@@ -48,7 +51,7 @@ export function loadProfile(address: string, name: string): Profile {
       inv: Array(INVENTORY_SLOTS).fill(null),
       bank: {},
       quests: {},
-      equipment: { weapon: null },
+      equipment: { weapon: null, head: null, body: null, legs: null },
     };
   }
   cache.set(address, p);
