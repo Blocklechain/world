@@ -22,8 +22,13 @@
 ### Device measurements
 _(pending first phone test — tunnel below)_
 
-### Tunnel URL
-- 2026-10-13: https://gmbh-neutral-parenting-savannah.trycloudflare.com (vite dev :5173 proxying colyseus :2567; quick tunnel, URL changes on restart)
+### Live deployment
+- **https://world.blockle.org is LIVE** (2026-10-13): nginx vhost + Let's Encrypt on the blockle.org box (144.126.133.21), static client at /opt/world/client, game server as `world.service` (tsx, ports 4567 game / 4580 api, localhost-only behind nginx). Deploy with `infra/deploy.sh`; first-time setup flag `--setup`. Verified from outside: healthz, matchmake, websocket join, movement + chat in browser.
+- Character v2 shipped: lofted 892-tri body, layered gait clips; knee-flexion sign bug found via world-space bone dump (flexion = +X on down-pointing bones) and fixed.
+- Chain side: BLOCK-721 standard drafted on blockle branch `block721` (asm emitter + conformance tests + docs, 95 tests green, not pushed) — needs review before PR.
+
+### Tunnel URL (superseded by live deployment)
+- 2026-10-13: https://gmbh-neutral-parenting-savannah.trycloudflare.com (vite dev :5173; quick tunnel, URL changes on restart)
 
 ### Chain audit (2026-10-13, verified against /Volumes/ExtremePro/blockle)
 Confirmed: chain in `chain/crates/{core,pow,chain,vm,zk,node}`, ML-DSA-44 (fips204, ctx `BlklTxV1`), 600 s target spacing, coinbase maturity 100; BLOCK-20 asm emitter `chain/crates/chain/src/block20.rs` with balances at `BLAKE2B(0x01‖addr)` and selector-byte ABI, conformance tests in `chain/crates/chain/tests/block20_token.rs`; Studio at `web/studio.js` (+ examples `chain/examples/contracts/`); native AMM in consensus (`pools.rs`, 30 bps); extension dApp provider (`blockle-extension/inpage.js`, signing only via `blockle-wasm`); Flutter app dApp browser; buy reserve curve in `src/biz.rs` + `web/buy.js`; regtest devnet built into the node (Equihash 48,5, 1 s spacing, maturity 5, `--mine --mine-interval`).
