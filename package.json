@@ -1,0 +1,17 @@
+{
+  "name": "world",
+  "private": true,
+  "version": "0.0.1",
+  "description": "WORLD — the game layer of the Blockle ecosystem (world.blockle.org)",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @world/client --filter @world/server dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

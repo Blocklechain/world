@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: world
+      POSTGRES_PASSWORD: world
+      POSTGRES_DB: world
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  # devnet BLOCK node: image/entrypoint filled in once the blockle devnet
+  # path is confirmed (see PROGRESS.md — chain audit in progress)
+
+volumes:
+  pgdata:

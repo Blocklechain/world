@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage/
+.turbo/
+# Blender session droppings — only scripted outputs in assets/out are committed
+*.blend
+*.blend1
+__pycache__/
+*.pyc
