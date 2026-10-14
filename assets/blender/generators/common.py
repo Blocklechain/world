@@ -85,10 +85,10 @@ def paint_faces(bm: bmesh.types.BMesh, faces, row_name: str, t: float):
             loop[uv_layer].uv = uv
 
 
-def finish_object(name: str, bm: bmesh.types.BMesh, category: str = "gear") -> bpy.types.Object:
-    """Triangulate-safe finalize: flat shading, palette material, linked to scene."""
+def finish_object(name: str, bm: bmesh.types.BMesh, category: str = "gear", smooth: bool = False) -> bpy.types.Object:
+    """Finalize: shading, palette material, linked to scene."""
     for f in bm.faces:
-        f.smooth = False
+        f.smooth = smooth
     mesh = bpy.data.meshes.new(name)
     bm.to_mesh(mesh)
     bm.free()

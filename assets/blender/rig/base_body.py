@@ -20,7 +20,7 @@ except ImportError:
     from generators import common
     from rig import world_rig
 
-N = 8  # ring segments
+N = 10  # ring segments
 
 
 def _ring(bm, cx, cy, cz, rx, ry):
@@ -83,7 +83,7 @@ class _Part:
 
     def done(self):
         for f in self.bm.faces:
-            f.smooth = False
+            f.smooth = True
         self.bm.to_mesh(self.obj.data)
         self.bm.free()
         self.obj.data.materials.append(common.palette_material("gear"))
@@ -176,8 +176,9 @@ def _arm(part, p, k, side):
     ]), "cloth", 0.66)
     part.paint(_tube(part.bm, part.deform, [
         (s * ax, 0, k["arm_top"] - 0.05, 0.050 * w, 0.055 * w, up),
+        (s * ax, -0.004, k["arm_top"] - 0.5 * (k["arm_top"] - k["elbow"]) * 0.6, 0.052 * w, 0.057 * w, up),
         (s * ax, 0, (k["arm_top"] + k["elbow"]) / 2, 0.046 * w, 0.050 * w, up),
-        (s * ax, 0, k["elbow"], 0.042 * w, 0.046 * w, up),
+        (s * ax, 0, k["elbow"], 0.040 * w, 0.044 * w, up),
     ]), "cloth", 0.47)
     part.paint(_tube(part.bm, part.deform, [
         (s * ax, 0, k["elbow"], 0.040 * w, 0.044 * w, fo),
@@ -211,8 +212,9 @@ def _build_legs(rig, p, k, prefix):
         ]), "leather", 0.50)
         part.paint(_tube(part.bm, part.deform, [
             (s * tx, 0, k["knee"], 0.048 * w, 0.053 * w, sn),
-            (s * tx, 0, (k["knee"] + k["ankle"]) / 2, 0.042 * w, 0.047 * w, sn),
-            (s * tx, 0.005, k["ankle"] + 0.03, 0.038 * w, 0.042 * w, sn),
+            (s * tx, 0.006, k["knee"] - (k["knee"] - k["ankle"]) * 0.3, 0.050 * w, 0.056 * w, sn),
+            (s * tx, 0, (k["knee"] + k["ankle"]) / 2, 0.040 * w, 0.045 * w, sn),
+            (s * tx, 0.005, k["ankle"] + 0.03, 0.034 * w, 0.038 * w, sn),
         ]), "leather", 0.40)
     return part.done()
 

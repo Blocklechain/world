@@ -97,7 +97,7 @@ def _finish(name, bm):
     old = bpy.data.objects.get(name)
     if old:
         bpy.data.objects.remove(old, do_unlink=True)
-    return common.finish_object(name, bm)
+    return common.finish_object(name, bm, smooth=True)
 
 
 def build_all():

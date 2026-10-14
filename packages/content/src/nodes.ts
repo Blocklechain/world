@@ -90,7 +90,7 @@ export function allNodes(): Map<string, WorldNode> {
 // ---- scenery (non-interactable props) --------------------------------------
 
 export interface SceneryItem {
-  kind: "ruin_pillar" | "barrow" | "boulder" | "grass_tuft" | "stalagmite" | "glow_crystal" | "rowboat";
+  kind: "ruin_pillar" | "barrow" | "boulder" | "grass_tuft" | "stalagmite" | "glow_crystal" | "rowboat" | "bush" | "fern" | "mushrooms" | "fallen_log" | "pebbles";
   x: number;
   z: number;
   y: number;
@@ -114,9 +114,20 @@ export function chunkScenery(cx: number, cz: number): SceneryItem[] {
       out.push({ kind, x, z, y: heightAt(x, z), scale: smin + r() * (smax - smin), yaw: r() * Math.PI * 2 });
     }
   };
-  // decorative grass where grass dominates the ground
+  // decorative underbrush by biome
   const grassiness = region.ground[0];
-  if (grassiness > 0.3) add("grass_tuft", grassiness * 22, 0.7, 1.4);
+  if (grassiness > 0.3) {
+    add("grass_tuft", grassiness * 26, 0.7, 1.4);
+    add("bush", grassiness * 3.2, 0.7, 1.3);
+    add("pebbles", 1.6, 0.7, 1.4);
+  }
+  if (region.id === "thornfell" || region.id === "emberwood" || region.id === "mistmarsh") {
+    add("fern", 6.0, 0.7, 1.3);
+    add("mushrooms", 2.2, 0.8, 1.4);
+    add("fallen_log", 1.1, 0.8, 1.2);
+  }
+  if (region.id === "sunfall") add("bush", 2.5, 0.8, 1.4);
+  if (region.ground[2] > 0.3) add("pebbles", 3.0, 0.8, 1.6);
   // beached rowboats wherever sand meets water
   const bx = x0 + 32;
   const bz = z0 + 32;

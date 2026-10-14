@@ -46,7 +46,7 @@ def _finish(name, bm):
     old = bpy.data.objects.get(name)
     if old:
         bpy.data.objects.remove(old, do_unlink=True)
-    return common.finish_object(name, bm)
+    return common.finish_object(name, bm, smooth=True)
 
 
 def _quadruped(name, rng, body_len, body_r, leg_h, head_r, row, t, tail=True, snout=0.14, ears=0.05):

@@ -181,6 +181,90 @@ def boulder(seed: int = 0):
     return _finish("boulder", bm)
 
 
+def bush(seed: int = 0):
+    r = common.rng(seed, "bush")
+    bm = bmesh.new()
+    for i in range(3):
+        ang = r.uniform(0, math.tau)
+        d = r.uniform(0, 0.35)
+        bf = _blob(bm, (math.cos(ang) * d, math.sin(ang) * d, 0.3), r.uniform(0.3, 0.5), 0.75, r, jitter=0.25, subdiv=2)
+        common.paint_faces(bm, bf, "adamant", 0.38 + r.uniform(0, 0.2))
+    return _finish("bush", bm)
+
+
+def fern(seed: int = 0):
+    r = common.rng(seed, "fern")
+    bm = bmesh.new()
+    for i in range(7):
+        ang = i / 7 * math.tau + r.uniform(-0.2, 0.2)
+        lean = r.uniform(0.35, 0.6)
+        tip = Vector((math.cos(ang) * lean, math.sin(ang) * lean, r.uniform(0.3, 0.5)))
+        base_l = Vector((math.cos(ang + 1.65) * 0.05, math.sin(ang + 1.65) * 0.05, 0.02))
+        base_r = Vector((math.cos(ang - 1.65) * 0.05, math.sin(ang - 1.65) * 0.05, 0.02))
+        mid = tip * 0.55 + Vector((0, 0, 0.12))
+        v = [bm.verts.new(p) for p in (base_l, base_r, mid + (base_r - base_l) * 0.3, mid - (base_r - base_l) * 0.3, tip)]
+        fs = [bm.faces.new((v[0], v[1], v[2], v[3])), bm.faces.new((v[3], v[2], v[4]))]
+        common.paint_faces(bm, fs, "gem", 0.35 + r.uniform(0, 0.15))
+    return _finish("fern", bm)
+
+
+def mushrooms(seed: int = 0):
+    r = common.rng(seed, "mushrooms")
+    bm = bmesh.new()
+    for i in range(4):
+        ang = r.uniform(0, math.tau)
+        d = r.uniform(0.05, 0.3)
+        x, y = math.cos(ang) * d, math.sin(ang) * d
+        h = r.uniform(0.1, 0.26)
+        stem = _tube_simple(bm, (x, y, 0), (x, y, h), 0.025, 0.02)
+        common.paint_faces(bm, stem, "bone", 0.7)
+        cap = _blob(bm, (x, y, h + 0.02), r.uniform(0.05, 0.1), 0.55, r)
+        common.paint_faces(bm, cap, "copper" if r.random() < 0.7 else "cloth", 0.6)
+    return _finish("mushrooms", bm)
+
+
+def _tube_simple(bm, p0, p1, r0, r1, n=5):
+    rings = []
+    for (px, py, pz), rad in ((p0, r0), (p1, r1)):
+        rings.append([bm.verts.new((px + rad * math.cos(a), py + rad * math.sin(a), pz)) for a in [k * math.tau / n for k in range(n)]])
+    fs = [bm.faces.new((rings[0][i], rings[0][(i + 1) % n], rings[1][(i + 1) % n], rings[1][i])) for i in range(n)]
+    fs.append(bm.faces.new(tuple(rings[1])))
+    return fs
+
+
+def fallen_log(seed: int = 0):
+    r = common.rng(seed, "log")
+    bm = bmesh.new()
+    n = 7
+    L = r.uniform(1.6, 2.6)
+    rings = []
+    for t in (0, 0.5, 1):
+        y = (t - 0.5) * L
+        rad = 0.16 * (1 - t * 0.25)
+        rings.append([bm.verts.new((rad * math.cos(a), y, 0.14 + rad * math.sin(a))) for a in [k * math.tau / n for k in range(n)]])
+    fs = []
+    for a, b in zip(rings, rings[1:]):
+        fs += [bm.faces.new((a[i], a[(i + 1) % n], b[(i + 1) % n], b[i])) for i in range(n)]
+    fs.append(bm.faces.new(tuple(reversed(rings[0]))))
+    fs.append(bm.faces.new(tuple(rings[-1])))
+    common.paint_faces(bm, fs, "wood", 0.32)
+    # moss stripe on top
+    mf = common.add_box(bm, (0, 0, 0.29), (0.18, L * 0.7, 0.03))
+    common.paint_faces(bm, mf, "adamant", 0.45)
+    return _finish("fallen_log", bm)
+
+
+def pebbles(seed: int = 0):
+    r = common.rng(seed, "pebbles")
+    bm = bmesh.new()
+    for i in range(6):
+        ang = r.uniform(0, math.tau)
+        d = r.uniform(0, 0.5)
+        bf = _blob(bm, (math.cos(ang) * d, math.sin(ang) * d, 0.04), r.uniform(0.05, 0.12), 0.5, r)
+        common.paint_faces(bm, bf, "stone", r.uniform(0.4, 0.6))
+    return _finish("pebbles", bm)
+
+
 # ---- gatherable patches ----------------------------------------------------
 
 def reeds(seed: int = 0):
@@ -456,6 +540,11 @@ ALL = {
     "reeds": lambda: reeds(4),
     "sunbloom_patch": lambda: sunbloom(5),
     "grass_tuft": lambda: grass_tuft(9),
+    "bush": lambda: bush(51),
+    "fern": lambda: fern(52),
+    "mushrooms": lambda: mushrooms(53),
+    "fallen_log": lambda: fallen_log(54),
+    "pebbles": lambda: pebbles(55),
     "fishing_spot": lambda: fishing_spot(),
     "cave_entrance": lambda: cave_entrance(),
     "rowboat": lambda: rowboat(),
