@@ -25,6 +25,7 @@ except ImportError:
     from rig import body_sculpt
 
 N = 14  # ring segments (higher density for sculpted anatomy)
+_HEAD_RACE_SEX = [("human", "m")]
 
 
 def _ring(bm, cx, cy, cz, rx, ry):
@@ -97,6 +98,7 @@ class _Part:
 
 
 def _build_head(rig, p, k, prefix, race="human", sex="m"):
+    _HEAD_RACE_SEX[0] = (race, sex)
     part = _Part(f"{prefix}_head", rig)
     gi = part.g("head")
     gn = part.g("neck")
@@ -132,7 +134,23 @@ def _build_head(rig, p, k, prefix, race="human", sex="m"):
 
     face_y = -0.112 * hs
     eye_z = jaw_z + 0.125
-    # ears
+    # front-planar UVs over the skull so the painted face texture lands on the
+    # face; back/side faces clamp to a plain-skin corner of the texture.
+    uvl = part.bm.loops.layers.uv.verify()
+    hw = 1.55 * R
+    hh = 1.95 * R
+    for face in part.bm.faces:
+        fc = face.calc_center_median()
+        front = face.normal.y < -0.25 and fc.z > skull_c[2] - R * 0.9
+        for loop in face.loops:
+            v = loop.vert.co
+            if front:
+                u = 0.5 + (v.x - skull_c[0]) / hw
+                vv = 0.5 + (v.z - skull_c[2]) / hh  # texture +v is up (forehead)
+                loop[uvl].uv = (max(0.02, min(0.98, u)), max(0.02, min(0.98, vv)))
+            else:
+                loop[uvl].uv = (0.03, 0.03)  # plain-skin corner
+    # ears (painted to skin-corner UV like the rest of the non-front)
     ear_z = eye_z - 0.01
     if p["ear"] == "point":
         for sx in (-1, 1):
@@ -145,7 +163,10 @@ def _build_head(rig, p, k, prefix, race="human", sex="m"):
     else:
         for sx in (-1, 1):
             part.paint(_box(part.bm, part.deform, gi, (sx * 0.108 * hs, 0.004, ear_z), (0.018, 0.03, 0.045 * hs)), *skin)
-    return part.done()
+    obj = part.done()
+    obj.data.materials.clear()
+    obj.data.materials.append(common.face_material(race, sex))
+    return obj
 
 
 def _build_torso(rig, p, k, sex, prefix):

@@ -124,6 +124,29 @@ def finish_object(name: str, bm: bmesh.types.BMesh, category: str = "gear", smoo
     return obj
 
 
+def face_material(race: str, sex: str) -> bpy.types.Material:
+    """Material sampling a painted face texture (real UVs, not palette)."""
+    name = f"FACE_{race}_{sex}"
+    mat = bpy.data.materials.get(name)
+    if mat is not None:
+        return mat
+    path = os.path.join(repo_root(), "assets", "out", "faces", f"face_{race}_{sex}.png")
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Roughness"].default_value = 0.6
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    img = bpy.data.images.get(f"facetex_{race}_{sex}")
+    if img is None and os.path.exists(path):
+        img = bpy.data.images.load(path)
+        img.name = f"facetex_{race}_{sex}"
+    tex.image = img
+    tex.location = (-320, 240)
+    nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    return mat
+
+
 # ---- bmesh building blocks -------------------------------------------------
 
 def add_prism(bm, profile, z0, z1, scale_top=1.0, offset_top=(0.0, 0.0)):
