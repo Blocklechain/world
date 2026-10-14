@@ -173,9 +173,97 @@ export const GLOAMDEEP_CAVE: GameMap = {
   monsterSpawns: caveMonsterSpawns,
 };
 
+// ---- The Sunken Keep (Veyra's Ruin dungeon) ---------------------------------
+
+const KEEP_SIZE = 140;
+const KEEP_SPAWN = { x: 48, z: 14 };
+// hand-carved halls: [x0, z0, x1, z1]
+const KEEP_RECTS: [number, number, number, number][] = [
+  [36, 6, 60, 26],    // entry hall
+  [44, 26, 52, 58],   // long corridor
+  [22, 34, 44, 50],   // west barracks
+  [52, 38, 76, 54],   // east crypt
+  [30, 58, 66, 78],   // great hall
+  [44, 78, 52, 96],   // boss approach
+  [28, 96, 68, 126],  // throne of the Barrow King
+  [60, 60, 84, 70],   // east gallery
+  [12, 60, 30, 70],   // west gallery
+];
+
+function keepOpen(x: number, z: number): boolean {
+  for (const [x0, z0, x1, z1] of KEEP_RECTS) {
+    if (x >= x0 && x <= x1 && z >= z0 && z <= z1) return true;
+  }
+  return false;
+}
+
+function keepFloor(x: number, z: number): number {
+  return 2.5 + (fbm(x, z, 9, 2, 777) - 0.5) * 0.25;
+}
+
+const KEEP_NODES: WorldNode[] = [
+  { id: "k1", species: "adamant_rock", x: 26, z: 38, y: 2.5, scale: 1, yaw: 1 },
+  { id: "k2", species: "adamant_rock", x: 40, z: 47, y: 2.5, scale: 1.1, yaw: 2 },
+  { id: "k3", species: "rune_rock", x: 72, z: 50, y: 2.5, scale: 1, yaw: 3 },
+  { id: "k4", species: "rune_rock", x: 16, z: 66, y: 2.5, scale: 1.05, yaw: 4 },
+  { id: "k5", species: "coal_rock", x: 80, z: 64, y: 2.5, scale: 1, yaw: 5 },
+];
+
+const KEEP_SCENERY: SceneryItem[] = [
+  // pillar rows in the great hall and throne room
+  ...[34, 46, 58].flatMap((x) => [62, 74].map((z) => ({ kind: "ruin_pillar" as const, x, z, y: 2.5, scale: 1.2, yaw: 0 }))),
+  ...[36, 48, 60].flatMap((x) => [102, 114].map((z) => ({ kind: "ruin_pillar" as const, x, z, y: 2.5, scale: 1.4, yaw: 0 }))),
+  { kind: "glow_crystal", x: 48, z: 92, y: 2.5, scale: 1.4, yaw: 0 },
+  { kind: "glow_crystal", x: 24, z: 42, y: 2.5, scale: 1, yaw: 1 },
+  { kind: "glow_crystal", x: 70, z: 46, y: 2.5, scale: 1, yaw: 2 },
+  { kind: "barrow", x: 60, z: 44, y: 2.5, scale: 0.8, yaw: 1 },
+  { kind: "barrow", x: 30, z: 120, y: 2.5, scale: 1.1, yaw: 2 },
+];
+
+function keepMonsterSpawns(): Map<string, MonsterSpawn> {
+  const list: MonsterSpawn[] = [
+    { id: "ks1", species: "skeleton", x: 40, z: 40, y: 2.5 },
+    { id: "ks2", species: "skeleton", x: 30, z: 46, y: 2.5 },
+    { id: "ks3", species: "skeleton", x: 60, z: 44, y: 2.5 },
+    { id: "ks4", species: "skeleton", x: 70, z: 50, y: 2.5 },
+    { id: "ks5", species: "dark_acolyte", x: 38, z: 66, y: 2.5 },
+    { id: "ks6", species: "dark_acolyte", x: 58, z: 72, y: 2.5 },
+    { id: "ks7", species: "skeleton", x: 48, z: 86, y: 2.5 },
+    { id: "ks8", species: "dark_acolyte", x: 20, z: 64, y: 2.5 },
+    { id: "ks9", species: "skeleton", x: 72, z: 65, y: 2.5 },
+    { id: "kboss", species: "barrow_king", x: 48, z: 112, y: 2.5 },
+  ];
+  return new Map(list.map((m) => [m.id, m]));
+}
+
+export const SUNKEN_KEEP: GameMap = {
+  id: "sunken_keep",
+  name: "The Sunken Keep",
+  kind: "cave",
+  width: KEEP_SIZE,
+  height: KEEP_SIZE,
+  spawn: KEEP_SPAWN,
+  heightAt: (x, z) => (keepOpen(x, z) ? keepFloor(x, z) : keepFloor(x, z) + 8),
+  moveStateAt: (x, z) => (keepOpen(x, z) ? "walk" : "blocked"),
+  isWalkable: keepOpen,
+  isLand: keepOpen,
+  groundWeights: () => [0.0, 0.25, 0.75, 0],
+  sandAt: () => 0,
+  chunkNodes: (cx, cz) =>
+    KEEP_NODES.filter(
+      (n) => Math.floor(n.x / SCATTER_CHUNK) === cx && Math.floor(n.z / SCATTER_CHUNK) === cz,
+    ),
+  chunkScenery: (cx, cz) =>
+    KEEP_SCENERY.filter(
+      (n) => Math.floor(n.x / SCATTER_CHUNK) === cx && Math.floor(n.z / SCATTER_CHUNK) === cz,
+    ),
+  monsterSpawns: keepMonsterSpawns,
+};
+
 export const MAPS: Record<string, GameMap> = {
   overworld: OVERWORLD,
   gloamdeep_cave: GLOAMDEEP_CAVE,
+  sunken_keep: SUNKEN_KEEP,
 };
 
 /** Portals between maps. Interacting within radius travels. */
@@ -191,6 +279,8 @@ export interface Portal {
 export const PORTALS: Portal[] = [
   { id: "cave_in", map: "overworld", x: 1225, z: 1012, toMap: "gloamdeep_cave", label: "Gloamdeep Cavern" },
   { id: "cave_out", map: "gloamdeep_cave", x: CAVE_SPAWN.x, z: CAVE_SPAWN.z - 8, toMap: "overworld", label: "Daylight" },
+  { id: "keep_in", map: "overworld", x: 770, z: 1704, toMap: "sunken_keep", label: "The Sunken Keep" },
+  { id: "keep_out", map: "sunken_keep", x: KEEP_SPAWN.x, z: KEEP_SPAWN.z - 6, toMap: "overworld", label: "Daylight" },
 ];
 
 // ---- client-side active map (the server uses GameMap objects directly) ------

@@ -22,7 +22,7 @@ interface MonsterLike {
 }
 
 const MODELS = [
-  "vermin", "wolf", "goblin", "goblin_brute", "bandit", "skeleton", "acolyte", "spider", "troll", "cave_bat",
+  "vermin", "wolf", "goblin", "goblin_brute", "bandit", "skeleton", "acolyte", "spider", "troll", "cave_bat", "barrow_king",
 ];
 
 interface MonsterView {
@@ -132,7 +132,7 @@ export class MonsterRenderer {
         bar.material = this.barMat;
         bar.billboardMode = 7;
         bar.parent = root;
-        const h = m.species === "troll" ? 2.8 : m.species === "wolf" || m.species === "vermin" ? 1.1 : 2.0;
+        const h = m.species === "troll" || m.species === "barrow_king" ? 2.9 : m.species === "wolf" || m.species === "vermin" ? 1.1 : 2.0;
         barBg.position.y = h;
         bar.position.y = h;
         bar.position.z = -0.001;

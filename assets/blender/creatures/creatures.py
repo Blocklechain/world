@@ -217,9 +217,36 @@ def cave_bat(seed=40):
     return _finish("cave_bat", bm)
 
 
+def barrow_king(seed=41):
+    r = common.rng(seed, "barrow_king")
+    o = _biped("barrow_king", r, 2.3, 1.3, 0.17, "bone", 0.62, "bone", 0.75, hunch=0.08, club=False)
+    # crown + burning eyes + great blade, added onto the biped
+    import bpy as _bpy
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    # crown ring with points
+    cz = 2.3 * 0.42 + 2.3 * 0.36 * 0.9 + 0.17 * 1.5
+    for k in range(5):
+        a = k * math.tau / 5
+        f = _tube(bm, (0.12 * math.cos(a), -0.08 + 0.12 * math.sin(a), cz), (0.15 * math.cos(a), -0.08 + 0.15 * math.sin(a), cz + 0.14), 0.025, 0.004, n=4)
+        common.paint_faces(bm, f, "gold", 0.75)
+    ring = _tube(bm, (0, -0.08, cz - 0.02), (0, -0.08, cz + 0.02), 0.145, 0.145, n=8)
+    common.paint_faces(bm, ring, "gold", 0.6)
+    # great blade in the right hand
+    bf = common.add_box(bm, (0.42, -0.25, 1.1), (0.1, 0.03, 1.5))
+    common.paint_faces(bm, bf, "runic", 0.5)
+    hf = common.add_box(bm, (0.42, -0.25, 0.42), (0.22, 0.06, 0.08))
+    common.paint_faces(bm, hf, "gold", 0.55)
+    for f in bm.faces:
+        f.smooth = False
+    bm.to_mesh(o.data)
+    bm.free()
+    return o
+
+
 ALL = {
     "vermin": vermin, "wolf": wolf, "goblin": goblin, "goblin_brute": goblin_brute,
-    "bandit": bandit, "skeleton": skeleton, "cave_bat": cave_bat, "acolyte": acolyte, "spider": spider, "troll": troll,
+    "bandit": bandit, "skeleton": skeleton, "cave_bat": cave_bat, "barrow_king": barrow_king, "acolyte": acolyte, "spider": spider, "troll": troll,
 }
 
 

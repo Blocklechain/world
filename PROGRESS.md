@@ -20,6 +20,12 @@ All live at https://world.blockle.org (deploy per phase):
 - **Gloamdeep Cavern**: GameMap abstraction (per-room maps server-side, active-map client-side); noise-carved dark cave with rich ores, spiders/brutes/bats, glow crystals; tap-to-travel portals with arrival at the far-side mouth.
 - **Sailing v1**: 62 beached rowboats on coastlines; board → sail any water at 6.8 m/s riding the shared wave function; run aground to dismount. Sailing-skill + big ships still queued.
 
+## 2026-10-14 later — armor, controls, graphics round 2, the Sunken Keep
+- **Armor**: 18 forgeable pieces (helm/platebody/platelegs x 6 tiers), armor rating lowers monster hits, helmets render on the head (hair tucks under), 4-slot equipment UI.
+- **Controls**: hold/drag one finger to steer continuously (tap still interacts); two-finger pinch/orbit; desktop right-drag orbit + wheel zoom.
+- **Graphics round 2**: FXAA + bloom pipeline, 2048 PCF shadows cast by trees/rocks/buildings, drifting baked clouds + sun disc, pollen particles, denser terrain (1.33m grid) with curvature AO in the grass channel, clearer shallows; trees/rocks/creatures re-meshed at higher subdivision.
+- **The Sunken Keep**: hand-carved stone dungeon at Veyra's Ruin — skeleton/acolyte garrison, pillar halls, glow crystals, and the **Barrow King** (lvl 40 boss, 320hp, runic/adamant bar drops, 5-min respawn).
+
 ### Known issues / next
 - Stray stretched-geometry artifact seen near Hearthmere (likely a degenerate thin-instance matrix) — investigate.
 - Caves/dungeons interiors (instanced rooms with loading), prop collision + physics feel, sailing + dynamic ships on the wave system, dedicated combat/fishing/swim-polish clips, equipment/smithing/cooking, asset remodel round 2 (houses brighter, creature polish), NPC idle anims. Old base_body.glb removable after clients cache-bust.

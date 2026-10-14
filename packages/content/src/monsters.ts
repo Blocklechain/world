@@ -36,6 +36,7 @@ export const MONSTERS: Record<string, MonsterSpecies> = Object.fromEntries(
       { id: "cave_spider", name: "Gloam Spider", model: "spider", level: 30, maxHp: 70, dmin: 3, dmax: 9, attackMs: 2200, attack: 30, defence: 26, aggroRadius: 9, speed: 3.4, xp: 180, drops: [{ item: "mithril_ore", chance: 0.12 }], respawnMs: 40_000 },
       { id: "cave_bat", name: "Gloam Bat", model: "cave_bat", level: 20, maxHp: 30, dmin: 1, dmax: 4, attackMs: 1800, attack: 20, defence: 14, aggroRadius: 10, speed: 4.2, xp: 95, drops: [{ item: "coal", chance: 0.3 }], respawnMs: 25_000 },
       { id: "dark_acolyte", name: "Dark Acolyte", model: "acolyte", level: 38, maxHp: 85, dmin: 4, dmax: 11, attackMs: 3000, attack: 38, defence: 32, aggroRadius: 10, speed: 2.8, xp: 260, drops: [{ item: "runestone", chance: 0.1 }, { item: "yew_log", chance: 0.18 }], respawnMs: 50_000 },
+      { id: "barrow_king", name: "The Barrow King", model: "barrow_king", level: 40, maxHp: 320, dmin: 5, dmax: 14, attackMs: 2800, attack: 42, defence: 36, aggroRadius: 12, speed: 2.9, xp: 900, drops: [{ item: "runic_bar", chance: 0.5 }, { item: "adamant_bar", chance: 0.8 }, { item: "mithril_bar", chance: 1.0 }], respawnMs: 300_000 },
       { id: "troll", name: "Moor Troll", model: "troll", level: 48, maxHp: 130, dmin: 6, dmax: 15, attackMs: 3400, attack: 48, defence: 44, aggroRadius: 9, speed: 2.4, xp: 450, drops: [{ item: "adamant_ore", chance: 0.25 }, { item: "mithril_ore", chance: 0.3 }], respawnMs: 90_000 },
     ] as MonsterSpecies[]
   ).map((m) => [m.id, m]),

@@ -55,12 +55,9 @@ async function start(auth: AuthResult | null) {
   try {
     const fromMap = sessionStorage.getItem("world:from");
     sessionStorage.removeItem("world:from");
-    net = await connect(
-      auth?.name ?? guestName,
-      auth?.token ?? null,
-      activeMap().kind === "cave" ? "cave" : "zone",
-      fromMap,
-    );
+    const roomName =
+      activeMap().id === "overworld" ? "zone" : activeMap().id === "sunken_keep" ? "keep" : "cave";
+    net = await connect(auth?.name ?? guestName, auth?.token ?? null, roomName, fromMap);
   } catch (err) {
     console.error(err);
     localStorage.removeItem("world:auth");
