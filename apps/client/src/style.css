@@ -364,6 +364,42 @@ body {
   background: #e8c33a;
 }
 
+.skills .skill {
+  cursor: pointer;
+}
+.book .back {
+  margin-right: 8px;
+  padding: 2px 9px;
+  border-radius: 6px;
+  border: 1px solid #4a3f30;
+  background: #241f19;
+  color: #e8c33a;
+}
+.book h3 {
+  text-transform: capitalize;
+}
+.unlock {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid #241f19;
+  font-size: 12.5px;
+  color: #6b604e;
+}
+.unlock.have {
+  color: #d8cdb8;
+}
+.unlock .ulv {
+  min-width: 24px;
+  text-align: right;
+  font-weight: 700;
+  color: #8a7d68;
+}
+.unlock.have .ulv {
+  color: #ffe08a;
+}
+
 .bank {
   left: 10px;
   right: auto;

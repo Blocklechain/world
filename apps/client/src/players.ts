@@ -111,7 +111,7 @@ class PlayerAvatar {
     if (name === "melee" || name === "shoot" || name === "cast") name = "chop";
     const clip =
       this.clips.get(name) ??
-      this.clips.get(name === "chop" || name === "mine" || name === "swim" ? "idle" : name);
+      this.clips.get(["chop","mine","swim","fish"].includes(name) ? "idle" : name);
     if (!clip || this.current === clip) {
       if (clip) clip.speedRatio = speedRatio;
       return;

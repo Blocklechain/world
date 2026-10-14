@@ -97,6 +97,25 @@ async function start(auth: AuthResult | null) {
 
   net.room.onLeave(() => mountStatus(hudEl, "Disconnected — reload to rejoin"));
 
+  // tap highlight: a pulsing ring on whatever you targeted
+  const { MeshBuilder } = await import("@babylonjs/core/Meshes/meshBuilder");
+  const { StandardMaterial } = await import("@babylonjs/core/Materials/standardMaterial");
+  const { Color3 } = await import("@babylonjs/core/Maths/math");
+  const ring = MeshBuilder.CreateTorus("target-ring", { diameter: 2.4, thickness: 0.09, tessellation: 28 }, world.scene);
+  const ringMat = new StandardMaterial("ring", world.scene);
+  ringMat.emissiveColor = new Color3(1.0, 0.82, 0.3);
+  ringMat.disableLighting = true;
+  ring.material = ringMat;
+  ring.isPickable = false;
+  ring.setEnabled(false);
+  let ringUntil = 0;
+  const showRing = (x: number, z: number, radius = 1.2) => {
+    ring.position.set(x, heightAt(x, z) + 0.12, z);
+    ring.scaling.setAll(radius);
+    ring.setEnabled(true);
+    ringUntil = performance.now() + 1600;
+  };
+
   // tap-to-move / tap-to-gather (short taps only; drags orbit the camera)
   let downAt = 0;
   let downPos = { x: 0, y: 0 };
@@ -114,12 +133,15 @@ async function start(auth: AuthResult | null) {
     const monster = monsters.nearest(x, z);
     if (monster) {
       net.attack(monster.id, combat.style);
+      const mp = monsters.monsterAt(monster.id);
+      if (mp) showRing(mp.x, mp.z, 1.0);
       return;
     }
     const node = scatter.nearestNode(x, z);
     if (node && !net.isDepleted(node.id)) {
       net.interact(node.id);
       renderer.setLocalTarget(node.x, node.z);
+      showRing(node.x, node.z, 1.1);
     } else {
       net.sendMove(x, z);
       renderer.setLocalTarget(x, z);
@@ -130,6 +152,13 @@ async function start(auth: AuthResult | null) {
     const dt = world.engine.getDeltaTime();
     renderer.update(dt);
     fx.update(dt);
+    if (ring.isEnabled()) {
+      if (performance.now() > ringUntil) ring.setEnabled(false);
+      else {
+        const pulse = 1 + 0.12 * Math.sin(performance.now() / 110);
+        ring.scaling.x = ring.scaling.z = ring.scaling.y * 0 + pulse * ring.scaling.y;
+      }
+    }
     const self = renderer.getSelfPosition();
     if (!self) return;
     monsters.update(dt, self.x, self.z);

@@ -414,7 +414,7 @@ export class ZoneRoom extends Room<ZoneState> {
     if (Math.hypot(p.x - node.x, p.z - node.z) > sp.radius + 0.8) return;
     p.moving = false;
     p.heading = Math.atan2(node.x - p.x, node.z - p.z);
-    p.action = sp.kind === "rock" ? "mine" : "chop";
+    p.action = sp.kind === "rock" ? "mine" : sp.kind === "fishing" ? "fish" : "chop";
 
     if (s.nextGatherAt === 0) s.nextGatherAt = now + GATHER_TICK_MS;
     if (now < s.nextGatherAt) return;

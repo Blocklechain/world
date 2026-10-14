@@ -26,6 +26,10 @@ export const ITEMS: Record<string, ItemDef> = Object.fromEntries(
       { id: "mithril_ore", name: "Mithril ore", value: 55, tint: "#5b7fd4" },
       { id: "adamant_ore", name: "Adamant ore", value: 90, tint: "#3e8e5a" },
       { id: "runestone", name: "Runestone", value: 150, tint: "#7b4fd0" },
+      // fish
+      { id: "silver_darter", name: "Silver darter", value: 6, tint: "#b8c4cc" },
+      { id: "mudwhisker", name: "Mudwhisker", value: 16, tint: "#6b5a3e" },
+      { id: "emberfin", name: "Emberfin", value: 40, tint: "#d4683a" },
       // crafting gatherables
       { id: "marsh_reed", name: "Marsh reed", value: 3, tint: "#5d7a4a" },
       { id: "sunbloom", name: "Sunbloom", value: 6, tint: "#e8c33a" },

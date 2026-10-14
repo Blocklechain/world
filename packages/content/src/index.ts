@@ -6,3 +6,4 @@ export * from "./nodes.js";
 export * from "./appearance.js";
 export * from "./monsters.js";
 export * from "./spawns.js";
+export * from "./unlocks.js";

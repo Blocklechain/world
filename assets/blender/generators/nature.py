@@ -212,6 +212,18 @@ def sunbloom(seed: int = 0):
     return _finish("sunbloom_patch", bm)
 
 
+def fishing_spot(seed: int = 0):
+    """Concentric ripple rings floating on the water surface."""
+    bm = bmesh.new()
+    n = 16
+    for r0, r1, t in ((0.25, 0.34, 0.9), (0.6, 0.68, 0.75), (0.95, 1.01, 0.6)):
+        inner = [bm.verts.new((r0 * math.cos(a), r0 * math.sin(a), 0)) for a in [k * math.tau / n for k in range(n)]]
+        outer = [bm.verts.new((r1 * math.cos(a), r1 * math.sin(a), 0)) for a in [k * math.tau / n for k in range(n)]]
+        faces = [bm.faces.new((inner[i], outer[i], outer[(i + 1) % n], inner[(i + 1) % n])) for i in range(n)]
+        common.paint_faces(bm, faces, "white", t)
+    return _finish("fishing_spot", bm)
+
+
 # ---- town & scenery --------------------------------------------------------
 
 def bank_booth(seed: int = 0):
@@ -288,6 +300,7 @@ ALL = {
     "reeds": lambda: reeds(4),
     "sunbloom_patch": lambda: sunbloom(5),
     "grass_tuft": lambda: grass_tuft(9),
+    "fishing_spot": lambda: fishing_spot(),
     "bank_booth": lambda: bank_booth(),
     "hearth": lambda: hearth(6),
     "ruin_pillar": lambda: ruin_pillar(7),

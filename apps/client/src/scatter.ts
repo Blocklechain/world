@@ -6,6 +6,7 @@ import "@babylonjs/loaders/glTF/2.0";
 
 import {
   NODE_SPECIES,
+  WATER_LEVEL,
   SPAWN,
   chunkNodes,
   chunkScenery,
@@ -19,7 +20,7 @@ const MODELS = [
   "tree_alderwood", "tree_emberbirch", "tree_silverwillow", "tree_duskyew", "tree_stump",
   "copper_rock", "iron_rock", "coal_rock", "mithril_rock", "adamant_rock", "rune_rock",
   "rock_rubble", "boulder", "reeds", "sunbloom_patch",
-  "bank_booth", "hearth", "ruin_pillar", "barrow", "grass_tuft",
+  "bank_booth", "hearth", "ruin_pillar", "barrow", "grass_tuft", "fishing_spot",
 ];
 
 const SPECIES_MODEL: Record<string, string> = {
@@ -35,6 +36,9 @@ const SPECIES_MODEL: Record<string, string> = {
   rune_rock: "rune_rock",
   reeds: "reeds",
   sunbloom_patch: "sunbloom_patch",
+  shore_spot: "fishing_spot",
+  murk_spot: "fishing_spot",
+  ember_spot: "fishing_spot",
 };
 
 /** Streams resource nodes + scenery as thin instances around the player. */
@@ -131,7 +135,8 @@ export class ScatterManager {
           // reeds/flowers vanish while respawning
         } else {
           const model = SPECIES_MODEL[n.species];
-          if (model) push(model, n.x, n.y, n.z, n.yaw, n.scale);
+          const y = sp.kind === "fishing" ? WATER_LEVEL + 0.05 : n.y;
+          if (model) push(model, n.x, y, n.z, n.yaw, n.scale);
         }
       }
     }

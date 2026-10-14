@@ -11,6 +11,7 @@ import {
   SEXES,
   SKILLS,
   levelForXp,
+  skillBook,
   xpForLevel,
   type Appearance,
 } from "@world/content";
@@ -242,6 +243,7 @@ function HudInner({
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [draft, setDraft] = useState("");
   const [panel, setPanel] = useState<Panel>("none");
+  const [book, setBook] = useState<(typeof SKILLS)[number] | null>(null);
   const [drops, setDrops] = useState<XpDrop[]>([]);
   const [toast, setToast] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
@@ -344,9 +346,10 @@ function HudInner({
         </div>
       )}
 
-      {panel === "skills" && g.skills && (
+      {panel === "skills" && g.skills && !book && (
         <div class="panelbox skills">
           <h3>Skills</h3>
+          <p class="hint">Tap a skill to open its book.</p>
           {SKILLS.map((s) => {
             const xp = g.skills![s];
             const lvl = levelForXp(xp);
@@ -354,12 +357,36 @@ function HudInner({
             const next = xpForLevel(lvl + 1);
             const pct = next > cur ? Math.min(100, ((xp - cur) / (next - cur)) * 100) : 100;
             return (
-              <div key={s} class="skill">
+              <div key={s} class="skill" onClick={() => setBook(s)}>
                 <span class="nm">{s}</span>
                 <span class="lv">{lvl}</span>
                 <div class="bar">
                   <div class="fill" style={{ width: `${pct}%` }} />
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {panel === "skills" && g.skills && book && (
+        <div class="panelbox skills book">
+          <h3>
+            <button class="back" onClick={() => setBook(null)}>
+              ←
+            </button>
+            {book} — level {levelForXp(g.skills[book])}
+          </h3>
+          <p class="hint">
+            {xpForLevel(levelForXp(g.skills[book]) + 1) - g.skills[book]} xp to level{" "}
+            {levelForXp(g.skills[book]) + 1}
+          </p>
+          {skillBook(book).map((u, i) => {
+            const have = levelForXp(g.skills![book]) >= u.level;
+            return (
+              <div key={i} class={`unlock ${have ? "have" : ""}`}>
+                <span class="ulv">{u.level}</span>
+                <span>{u.text}</span>
               </div>
             );
           })}

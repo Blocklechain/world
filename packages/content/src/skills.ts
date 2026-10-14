@@ -9,6 +9,7 @@ export const SKILLS = [
   "woodcutting",
   "smithing",
   "crafting",
+  "fishing",
 ] as const;
 export type SkillId = (typeof SKILLS)[number];
 
