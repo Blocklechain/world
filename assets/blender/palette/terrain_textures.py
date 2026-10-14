@@ -56,10 +56,12 @@ def _mix(c0, c1, t):
     return np.asarray(c0, np.float32) * (1 - t) + np.asarray(c1, np.float32) * t
 
 
-def _save(name: str, rgb: np.ndarray):
+def _save(name: str, rgb: np.ndarray, non_color: bool = False):
     rgb = np.clip(rgb, 0, 1)
     rgba = np.concatenate([rgb, np.ones((SIZE, SIZE, 1), np.float32)], axis=2)
     img = bpy.data.images.get(name) or bpy.data.images.new(name, SIZE, SIZE, alpha=False)
+    if non_color:
+        img.colorspace_settings.name = "Non-Color"
     img.pixels.foreach_set(rgba.ravel())
     out_dir = os.path.join(repo_root(), "assets", "out", "terrain")
     os.makedirs(out_dir, exist_ok=True)
@@ -70,50 +72,82 @@ def _save(name: str, rgb: np.ndarray):
     return path
 
 
+def _normal_from_height(height: np.ndarray, strength: float = 2.0) -> np.ndarray:
+    """Tangent-space normal map from a tileable height field (wrapping sobel)."""
+    gx = (np.roll(height, -1, 1) - np.roll(height, 1, 1)) * strength
+    gy = (np.roll(height, -1, 0) - np.roll(height, 1, 0)) * strength
+    nz = np.ones_like(height)
+    length = np.sqrt(gx * gx + gy * gy + nz * nz)
+    n = np.stack([-gx / length, -gy / length, nz / length], axis=2)
+    return n * 0.5 + 0.5  # encode to 0..1
+
+
 def grass():
     base = _fbm(11)
     patch = _fbm(23, (8, 16, 32))
+    clump = _fbm(13, (16, 32, 64, 128))         # blade clumps
     speck = _value_noise(512, 31)
-    col = _mix((0.22, 0.34, 0.14), (0.38, 0.52, 0.22), base)
-    col = _mix(col, (0.45, 0.50, 0.20), np.clip(patch - 0.45, 0, 1) * 1.4)  # dry patches
-    col += (speck[..., None] - 0.5) * 0.10  # blade speckle
+    blades = np.abs(np.sin(_value_noise(256, 33) * 40)) ** 3  # fine blade streaks
+    col = _mix((0.17, 0.30, 0.10), (0.40, 0.56, 0.22), base)
+    col = _mix(col, (0.47, 0.52, 0.20), np.clip(patch - 0.45, 0, 1) * 1.6)  # dry patches
+    col = _mix(col, (0.22, 0.38, 0.14), clump * 0.5)
+    col += (speck[..., None] - 0.5) * 0.09
+    col -= (blades[..., None]) * 0.06
+    h = base * 0.5 + clump * 0.5 + blades * 0.3
+    _save("grass_n", _normal_from_height(h, 2.4), non_color=True)
     return _save("grass", col)
 
 
 def dirt():
     base = _fbm(41)
-    pebbles = np.clip(_value_noise(256, 43) - 0.72, 0, 1) * 3.0
-    col = _mix((0.30, 0.22, 0.14), (0.46, 0.35, 0.22), base)
-    col = _mix(col, (0.52, 0.47, 0.40), pebbles)
-    col += (_value_noise(512, 47)[..., None] - 0.5) * 0.06
+    clods = _fbm(45, (16, 32, 64))
+    pebbles = np.clip(_value_noise(256, 43) - 0.70, 0, 1) * 3.0
+    cracks = np.clip(0.1 - np.abs(_fbm(47, (16, 32)) - 0.5) * 2, 0, 1) * 4
+    col = _mix((0.27, 0.19, 0.12), (0.48, 0.37, 0.24), base)
+    col = _mix(col, (0.56, 0.50, 0.42), pebbles)
+    col = _mix(col, (0.18, 0.13, 0.09), np.clip(cracks, 0, 1))
+    col += (_value_noise(512, 49)[..., None] - 0.5) * 0.06
+    h = base * 0.4 + clods * 0.5 + pebbles * 0.6 - np.clip(cracks, 0, 1) * 0.5
+    _save("dirt_n", _normal_from_height(h, 2.8), non_color=True)
     return _save("dirt", col)
 
 
 def rock():
     base = _fbm(61)
+    strata = (np.sin(_fbm(63, (8, 16)) * 22) * 0.5 + 0.5)  # layered strata
     cracks = np.abs(_fbm(67, (16, 32, 64)) - 0.5) * 2
-    crackline = np.clip(0.14 - cracks, 0, 1) * 5.0
-    col = _mix((0.40, 0.39, 0.37), (0.58, 0.57, 0.54), base)
-    col = _mix(col, (0.22, 0.21, 0.20), np.clip(crackline, 0, 1))
+    crackline = np.clip(0.12 - cracks, 0, 1) * 6.0
+    col = _mix((0.33, 0.33, 0.31), (0.60, 0.59, 0.56), base)
+    col = _mix(col, (0.42, 0.41, 0.38), strata * 0.4)
+    col = _mix(col, (0.16, 0.15, 0.14), np.clip(crackline, 0, 1))
     col += (_value_noise(512, 71)[..., None] - 0.5) * 0.07
+    h = base * 0.5 + strata * 0.3 - np.clip(crackline, 0, 1) * 0.9
+    _save("rock_n", _normal_from_height(h, 3.6), non_color=True)
     return _save("rock", col)
 
 
 def marsh():
     base = _fbm(81)
     wet = np.clip(_fbm(83, (8, 16)) - 0.5, 0, 1) * 2
-    col = _mix((0.20, 0.24, 0.12), (0.33, 0.34, 0.16), base)
-    col = _mix(col, (0.14, 0.18, 0.14), wet)  # dark wet pools
+    moss = _fbm(85, (32, 64))
+    col = _mix((0.16, 0.22, 0.10), (0.33, 0.35, 0.17), base)
+    col = _mix(col, (0.10, 0.15, 0.12), wet)  # dark wet pools
+    col = _mix(col, (0.26, 0.34, 0.16), moss * 0.4)
     col += (_value_noise(512, 89)[..., None] - 0.5) * 0.08
+    h = base * 0.5 + moss * 0.4 - wet * 0.3
+    _save("marsh_n", _normal_from_height(h, 2.0), non_color=True)
     return _save("marsh", col)
 
 
 def sand():
     base = _fbm(101)
     ripples = np.abs(np.sin(_fbm(103, (8, 16, 32)) * 14.0)) ** 2
-    col = _mix((0.62, 0.55, 0.40), (0.78, 0.70, 0.52), base)
-    col = _mix(col, (0.55, 0.48, 0.35), ripples * 0.35)
-    col += (_value_noise(512, 107)[..., None] - 0.5) * 0.08
+    grains = _value_noise(512, 109)
+    col = _mix((0.60, 0.53, 0.38), (0.80, 0.72, 0.54), base)
+    col = _mix(col, (0.54, 0.47, 0.34), ripples * 0.4)
+    col += (grains[..., None] - 0.5) * 0.07
+    h = base * 0.3 + ripples * 0.6
+    _save("sand_n", _normal_from_height(h, 2.0), non_color=True)
     return _save("sand", col)
 
 

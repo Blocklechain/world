@@ -7,7 +7,7 @@ import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import type { Scene } from "@babylonjs/core/scene";
-import { MixMaterial } from "@babylonjs/materials/mix";
+import { TerrainMaterial } from "@babylonjs/materials/terrain";
 
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
 
@@ -30,13 +30,10 @@ export class TerrainManager {
   private waterCenter = { x: NaN, z: NaN };
 
   constructor(private scene: Scene) {
-    for (const name of ["grass", "dirt", "rock", "marsh", "sand"]) {
-      const t = new Texture(`/assets/terrain/${name}.png`, scene);
+    // 3 normal-mapped layers: grass(R), dirt+sand(G), rock+marsh(B)
+    for (const name of ["grass", "dirt", "rock", "grass_n", "dirt_n", "rock_n"]) {
+      const t = new Texture(`/assets/terrain/${name}.png`, scene, false, name.endsWith("_n") ? false : true);
       t.wrapU = t.wrapV = Texture.WRAP_ADDRESSMODE;
-      // MixMaterial derives diffuse UVs from the (chunk-local) mix UV scaled
-      // by the diffuse texture's own scale — CHUNK/TILE repeats per chunk
-      t.uScale = CHUNK / TILE;
-      t.vScale = CHUNK / TILE;
       this.detail[name] = t;
     }
 
@@ -174,46 +171,39 @@ export class TerrainManager {
         const x = x0 + (i / (MIX_RES - 1)) * CHUNK;
         const z = z0 + (j / (MIX_RES - 1)) * CHUNK;
         const [g, d, r, m] = mapGroundWeights(x, z);
+        const sand = mapSandAt(x, z);
         const k = (j * MIX_RES + i) * 4;
-        // crude curvature AO: hollows darken, crests brighten slightly
-        const h0 = mapHeightAt(x, z);
-        const concave =
-          (mapHeightAt(x + 2.5, z) + mapHeightAt(x - 2.5, z) + mapHeightAt(x, z + 2.5) + mapHeightAt(x, z - 2.5)) / 4 -
-          h0;
-        const ao = Math.max(0.62, Math.min(1.0, 1 - concave * 0.55));
-        mix[k] = Math.round(255 * ao); // layer-1 brightness
-        mix[k + 1] = (d / Math.max(0.001, g + d)) * 255;
-        mix[k + 2] = r * 255;
-        mix[k + 3] = 255 - m * 255;
+        // TerrainMaterial: R=layer1(grass) G=layer2(dirt/sand) B=layer3(rock/marsh)
+        let r1 = g * (1 - sand);
+        let r2 = d + sand * 1.4;
+        let r3 = r + m;
+        const sum = r1 + r2 + r3 || 1;
+        mix[k] = (r1 / sum) * 255;
+        mix[k + 1] = (r2 / sum) * 255;
+        mix[k + 2] = (r3 / sum) * 255;
+        mix[k + 3] = 255;
       }
     }
     const mixTex = RawTexture.CreateRGBATexture(mix, MIX_RES, MIX_RES, this.scene, false, false, Texture.BILINEAR_SAMPLINGMODE);
 
-    // second cascade: sand over everything by beach/seabed weight
-    const mix2 = new Uint8Array(MIX_RES * MIX_RES * 4);
-    for (let j = 0; j < MIX_RES; j++) {
-      for (let i = 0; i < MIX_RES; i++) {
-        const x = x0 + (i / (MIX_RES - 1)) * CHUNK;
-        const z = z0 + (j / (MIX_RES - 1)) * CHUNK;
-        const k = (j * MIX_RES + i) * 4;
-        mix2[k] = mapSandAt(x, z) * 255;
-        mix2[k + 3] = 255; // keep layer-8 (1-a) silent
-      }
-    }
-    const mixTex2 = RawTexture.CreateRGBATexture(mix2, MIX_RES, MIX_RES, this.scene, false, false, Texture.BILINEAR_SAMPLINGMODE);
-
-    const mat = new MixMaterial(`terrainmat:${cx}:${cz}`, this.scene);
-    mat.mixTexture1 = mixTex;
-    mat.mixTexture2 = mixTex2;
+    const mat = new TerrainMaterial(`terrainmat:${cx}:${cz}`, this.scene);
+    mat.mixTexture = mixTex;
     mat.diffuseTexture1 = this.detail.grass!;
     mat.diffuseTexture2 = this.detail.dirt!;
     mat.diffuseTexture3 = this.detail.rock!;
-    mat.diffuseTexture4 = this.detail.marsh!;
-    mat.diffuseTexture5 = this.detail.sand!;
-    mat.diffuseTexture6 = this.detail.sand!;
-    mat.diffuseTexture7 = this.detail.sand!;
-    mat.diffuseTexture8 = this.detail.sand!;
-    mat.specularColor = Color3.Black();
+    mat.bumpTexture1 = this.detail.grass_n!;
+    mat.bumpTexture2 = this.detail.dirt_n!;
+    mat.bumpTexture3 = this.detail.rock_n!;
+    const rep = CHUNK / TILE;
+    for (const t of [
+      mat.diffuseTexture1, mat.diffuseTexture2, mat.diffuseTexture3,
+      mat.bumpTexture1, mat.bumpTexture2, mat.bumpTexture3,
+    ]) {
+      (t as Texture).uScale = rep;
+      (t as Texture).vScale = rep;
+    }
+    mat.specularColor = new Color3(0.05, 0.05, 0.05);
+    mat.specularPower = 64;
     mesh.material = mat;
 
     mesh.isPickable = true;
