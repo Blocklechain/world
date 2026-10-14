@@ -1,0 +1,84 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: #141210;
+  font-family: -apple-system, system-ui, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: #eee;
+}
+#hud .status {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 10px;
+  font-size: 12px;
+  opacity: 0.8;
+  text-shadow: 0 1px 2px #000;
+}
+#hud .chat {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 420px;
+}
+#hud .chat .log {
+  max-height: 26vh;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.45;
+  text-shadow: 0 1px 2px #000;
+  mask-image: linear-gradient(to bottom, transparent, black 15%);
+}
+#hud .chat .log .sys {
+  color: #c9b458;
+  font-style: italic;
+}
+#hud .chat .log b {
+  color: #9fd0ff;
+}
+#hud .chat form {
+  display: flex;
+  gap: 6px;
+}
+#hud .chat input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #444;
+  border-radius: 8px;
+  background: rgba(10, 10, 10, 0.65);
+  color: #eee;
+  font-size: 16px; /* prevents iOS zoom-on-focus */
+  backdrop-filter: blur(6px);
+}
+#hud .chat button {
+  padding: 10px 14px;
+  border: 1px solid #555;
+  border-radius: 8px;
+  background: rgba(40, 36, 30, 0.8);
+  color: #eee;
+  font-size: 14px;
+}
