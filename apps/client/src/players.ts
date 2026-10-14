@@ -257,6 +257,10 @@ export class PlayerRenderer {
     this.localTarget = { x, z };
   }
 
+  clearLocalTarget() {
+    this.localTarget = null;
+  }
+
   getSelfPosition(): { x: number; z: number } | null {
     const a = this.avatars.get(this.selfId);
     return a ? { x: a.root.position.x, z: a.root.position.z } : null;

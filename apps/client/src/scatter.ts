@@ -1,6 +1,7 @@
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
+import type { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGenerator";
 import type { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/loaders/glTF/2.0";
 
@@ -19,6 +20,13 @@ import {
 } from "@world/content";
 
 const SCATTER_CHUNK = 64;
+
+/** models whose thin instances cast sun shadows */
+const SHADOW_CASTERS = new Set([
+  "tree_alderwood", "tree_emberbirch", "tree_silverwillow", "tree_duskyew",
+  "copper_rock", "iron_rock", "coal_rock", "mithril_rock", "adamant_rock", "rune_rock",
+  "boulder", "ruin_pillar", "house", "house_stone", "smithy", "bank_booth", "cave_entrance", "stalagmite",
+]);
 
 const MODELS = [
   "tree_alderwood", "tree_emberbirch", "tree_silverwillow", "tree_duskyew", "tree_stump",
@@ -59,6 +67,7 @@ export class ScatterManager {
   constructor(
     private scene: Scene,
     private isDepleted: (nodeId: string) => boolean,
+    private shadows?: ShadowGenerator,
   ) {}
 
   async load() {
@@ -71,6 +80,7 @@ export class ScatterManager {
         mesh.setEnabled(false);
         mesh.isPickable = false;
         for (const m of res.meshes) if (m !== mesh) m.dispose();
+        if (this.shadows && SHADOW_CASTERS.has(name)) this.shadows.addShadowCaster(mesh, false);
         this.bases.set(name, mesh);
       }),
     );

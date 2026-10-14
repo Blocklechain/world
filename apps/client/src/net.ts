@@ -66,6 +66,7 @@ export interface Net {
   sessionId: string;
   game: GameState;
   sendMove(x: number, z: number): void;
+  sendStop(): void;
   sendChat(text: string): void;
   interact(nodeId: string): void;
   attack(monsterId: string, style: string): void;
@@ -165,6 +166,7 @@ export async function connect(
     sessionId: room.sessionId,
     game,
     sendMove: (x, z) => room.send(MSG.move, { x, z }),
+    sendStop: () => room.send(MSG.stop),
     sendChat: (text) => room.send(MSG.chat, { text }),
     interact: (nodeId) => room.send(MSG.interact, { nodeId }),
     attack: (monsterId, style) => room.send("attack", { monsterId, style }),

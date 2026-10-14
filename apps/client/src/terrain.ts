@@ -14,8 +14,8 @@ import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
 import { WATER_LEVEL, activeMap, mapGroundWeights, mapHeightAt, mapSandAt } from "@world/content";
 
 export const CHUNK = 64;
-const VERTS = 33; // 2m grid
-const MIX_RES = 32;
+const VERTS = 49; // ~1.33m grid
+const MIX_RES = 48;
 const TILE = 8; // texture repeat (must divide CHUNK so tiling is seamless across chunks)
 
 /** Streams terrain chunks around the player. Heights/splats come from the
@@ -49,11 +49,12 @@ export class TerrainManager {
     );
     const wm = new StandardMaterial("water", scene);
     wm.diffuseColor = new Color3(1, 1, 1);
-    wm.specularColor = new Color3(0.45, 0.5, 0.5);
-    wm.specularPower = 96;
-    wm.alpha = 0.8;
+    wm.specularColor = new Color3(0.75, 0.8, 0.8);
+    wm.specularPower = 180;
+    wm.emissiveColor = new Color3(0.02, 0.05, 0.07);
+    wm.alpha = 0.78;
     this.water.material = wm;
-    this.water.hasVertexAlpha = false;
+    this.water.hasVertexAlpha = true;
     this.water.position.y = WATER_LEVEL;
     this.water.isPickable = false;
     if (activeMap().kind === "cave") this.water.setEnabled(false);
@@ -92,7 +93,7 @@ export class TerrainManager {
       colors[c] = shallow[0]! + (deep[0]! - shallow[0]!) * k;
       colors[c + 1] = shallow[1]! + (deep[1]! - shallow[1]!) * k;
       colors[c + 2] = shallow[2]! + (deep[2]! - shallow[2]!) * k;
-      colors[c + 3] = 1;
+      colors[c + 3] = 0.55 + 0.45 * k; // clearer shallows
     }
     this.water.setVerticesData(VertexBuffer.ColorKind, colors, true);
   }
@@ -174,7 +175,13 @@ export class TerrainManager {
         const z = z0 + (j / (MIX_RES - 1)) * CHUNK;
         const [g, d, r, m] = mapGroundWeights(x, z);
         const k = (j * MIX_RES + i) * 4;
-        mix[k] = 255; // layer-1 brightness
+        // crude curvature AO: hollows darken, crests brighten slightly
+        const h0 = mapHeightAt(x, z);
+        const concave =
+          (mapHeightAt(x + 2.5, z) + mapHeightAt(x - 2.5, z) + mapHeightAt(x, z + 2.5) + mapHeightAt(x, z - 2.5)) / 4 -
+          h0;
+        const ao = Math.max(0.62, Math.min(1.0, 1 - concave * 0.55));
+        mix[k] = Math.round(255 * ao); // layer-1 brightness
         mix[k + 1] = (d / Math.max(0.001, g + d)) * 255;
         mix[k + 2] = r * 255;
         mix[k + 3] = 255 - m * 255;

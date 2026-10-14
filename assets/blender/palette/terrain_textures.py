@@ -117,6 +117,29 @@ def sand():
     return _save("sand", col)
 
 
+def clouds():
+    """Soft cumulus billboard sheet with alpha."""
+    base = _fbm(301, (4, 8, 16, 32), gain=0.6)
+    body = np.clip((base - 0.52) * 3.2, 0, 1)
+    soft = np.clip((base - 0.45) * 1.6, 0, 1) * 0.5
+    a = np.clip(body + soft, 0, 1) ** 1.3
+    # fade edges so billboards never show seams
+    yy, xx = np.mgrid[0:SIZE, 0:SIZE].astype(np.float32) / SIZE
+    edge = np.clip((0.5 - np.abs(xx - 0.5)) * 6, 0, 1) * np.clip((0.5 - np.abs(yy - 0.5)) * 6, 0, 1)
+    a *= edge
+    shade = 0.82 + 0.18 * _fbm(307, (8, 16))
+    rgba = np.stack([shade, shade, shade * 1.02, a], axis=2).astype(np.float32)
+    img = bpy.data.images.get("clouds") or bpy.data.images.new("clouds", SIZE, SIZE, alpha=True)
+    img.pixels.foreach_set(np.clip(rgba, 0, 1).ravel())
+    out_dir = os.path.join(repo_root(), "assets", "out", "terrain")
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, "clouds.png")
+    img.filepath_raw = path
+    img.file_format = "PNG"
+    img.save()
+    return path
+
+
 def build_all():
     return [grass(), dirt(), rock(), marsh(), sand()]
 

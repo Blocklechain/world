@@ -7,6 +7,7 @@ import { CharacterLibrary, PlayerRenderer } from "./players";
 import { ScatterManager } from "./scatter";
 import { createScene } from "./scene";
 import { TerrainManager } from "./terrain";
+import { installControls } from "./controls";
 import { mountAuth, mountCreate, mountHud, mountStatus, type CombatRef } from "./ui";
 
 setActiveMap(sessionStorage.getItem("world:map") ?? "overworld");
@@ -67,7 +68,7 @@ async function start(auth: AuthResult | null) {
     return;
   }
 
-  const scatter = new ScatterManager(world.scene, (id) => net.isDepleted(id));
+  const scatter = new ScatterManager(world.scene, (id) => net.isDepleted(id), world.shadows);
   void scatter.load();
   net.onDepletedChange(() => scatter.markDirty());
 
@@ -146,20 +147,41 @@ async function start(auth: AuthResult | null) {
     ringUntil = performance.now() + 1600;
   };
 
-  // tap-to-move / tap-to-gather (short taps only; drags orbit the camera)
-  let downAt = 0;
-  let downPos = { x: 0, y: 0 };
-  canvas.addEventListener("pointerdown", (e) => {
-    downAt = performance.now();
-    downPos = { x: e.clientX, y: e.clientY };
-  });
-  canvas.addEventListener("pointerup", (e) => {
-    const dt = performance.now() - downAt;
-    const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
-    if (dt > 350 || moved > 12) return;
-    const pick = world.scene.pick(e.clientX, e.clientY, (m) => m.name.startsWith("terrain:"));
-    if (!pick?.pickedPoint) return;
-    const { x, z } = pick.pickedPoint;
+  // controls: tap interacts, hold/drag steers, two fingers orbit/zoom
+  let lastSteerSent = 0;
+  installControls(canvas, world.scene, world.camera, {
+    onSteer(px, pz) {
+      const self = renderer.getSelfPosition();
+      if (!self) return;
+      const dx = px - self.x;
+      const dz = pz - self.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist < 0.4) return;
+      let target: { x: number; z: number } | null = null;
+      for (const reach of [Math.min(8, dist), 4, 2]) {
+        const t = { x: self.x + (dx / dist) * reach, z: self.z + (dz / dist) * reach };
+        const sp = (net.room.state as { players?: Map<string, { boat: boolean }> }).players?.get(net.sessionId);
+        const ok = sp?.boat ? true : activeMap().isWalkable(t.x, t.z);
+        if (ok) {
+          target = t;
+          break;
+        }
+      }
+      if (!target) return;
+      renderer.setLocalTarget(target.x, target.z);
+      const now = performance.now();
+      if (now - lastSteerSent > 140) {
+        lastSteerSent = now;
+        net.sendMove(target.x, target.z);
+      }
+    },
+    onSteerEnd() {
+      const self = renderer.getSelfPosition();
+      renderer.clearLocalTarget();
+      net.sendStop();
+      if (self) net.sendMove(self.x, self.z);
+    },
+    onTap(x, z) {
     const portal = PORTALS.find((pt) => pt.map === activeMap().id && Math.hypot(pt.x - x, pt.z - z) < 3);
     if (portal) {
       const self = renderer.getSelfPosition();
@@ -234,6 +256,7 @@ async function start(auth: AuthResult | null) {
       net.sendMove(x, z);
       renderer.setLocalTarget(x, z);
     }
+    },
   });
 
   world.scene.onBeforeRenderObservable.add(() => {

@@ -100,7 +100,7 @@ def tree(species: str, seed: int = 0):
         c = top + Vector((math.cos(ang) * d, math.sin(ang) * d, lift))
         radius = height * (r.uniform(0.24, 0.3) if big else r.uniform(0.13, 0.19))
         squash = 0.72 if not droop else 1.3
-        bf = _blob(bm, c, radius, squash, r, jitter=0.18, subdiv=2 if big else 1)
+        bf = _blob(bm, c, radius, squash, r, jitter=0.2, subdiv=2)
         shade = canopy_t + (0.1 if big else r.uniform(-0.16, 0.08))
         common.paint_faces(bm, bf, canopy_row, shade)
     return _finish(f"tree_{species}", bm)
@@ -151,7 +151,7 @@ def ore_rock(species: str, seed: int = 0):
         d = r.uniform(0, 0.45)
         radius = r.uniform(0.45, 0.8) * (1.15 if i == 0 else 0.8)
         c = (math.cos(ang) * d, math.sin(ang) * d, radius * 0.45)
-        bf = _blob(bm, c, radius, 0.7, r, jitter=0.35)
+        bf = _blob(bm, c, radius, 0.7, r, jitter=0.35, subdiv=2 if i == 0 else 1)
         common.paint_faces(bm, bf, "stone", r.uniform(0.35, 0.55))
     # ore chunks studding the rock
     for i in range(5):
@@ -176,7 +176,7 @@ def rubble(seed: int = 0):
 def boulder(seed: int = 0):
     r = common.rng(seed, "boulder")
     bm = bmesh.new()
-    bf = _blob(bm, (0, 0, 0.55), 0.9, 0.75, r, jitter=0.4)
+    bf = _blob(bm, (0, 0, 0.55), 0.9, 0.75, r, jitter=0.4, subdiv=2)
     common.paint_faces(bm, bf, "stone", 0.42)
     return _finish("boulder", bm)
 

@@ -4,6 +4,11 @@ import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGenerator";
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
+import { DefaultRenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline";
+import { ParticleSystem } from "@babylonjs/core/Particles/particleSystem";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture";
+import { Color4 as BColor4 } from "@babylonjs/core/Maths/math.color";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3, Color4, Vector3 } from "@babylonjs/core/Maths/math";
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
@@ -76,10 +81,19 @@ export function createScene(canvas: HTMLCanvasElement): WorldScene {
   sun.diffuse = new Color3(1.0, 0.95, 0.82);
   sun.autoCalcShadowZBounds = true;
 
-  const shadows = new ShadowGenerator(1024, sun);
+  const shadows = new ShadowGenerator(2048, sun);
   shadows.usePercentageCloserFiltering = true;
-  shadows.filteringQuality = ShadowGenerator.QUALITY_LOW;
-  shadows.darkness = 0.45;
+  shadows.filteringQuality = ShadowGenerator.QUALITY_MEDIUM;
+  shadows.darkness = 0.42;
+  shadows.bias = 0.0012;
+
+  // post FX: antialiasing + a touch of bloom (tone mapping already set above)
+  const pipeline = new DefaultRenderingPipeline("rp", false, scene, [camera]);
+  pipeline.fxaaEnabled = true;
+  pipeline.bloomEnabled = true;
+  pipeline.bloomThreshold = 0.86;
+  pipeline.bloomWeight = 0.18;
+  pipeline.bloomScale = 0.5;
 
   // gradient sky dome: deep zenith blue -> warm horizon band (surface only)
   if (!cave) {
@@ -109,6 +123,76 @@ export function createScene(canvas: HTMLCanvasElement): WorldScene {
   sky.applyFog = false;
   sky.isPickable = false;
   sky.infiniteDistance = true;
+
+  // sun disc on the dome
+  const sunDisc = MeshBuilder.CreateDisc("sunDisc", { radius: 14, tessellation: 20 }, scene);
+  const sunMat = new StandardMaterial("sunDisc", scene);
+  sunMat.emissiveColor = new Color3(1.0, 0.93, 0.78);
+  sunMat.disableLighting = true;
+  sunDisc.material = sunMat;
+  sunDisc.parent = sky;
+  sunDisc.position.set(105, 165, -80);
+  sunDisc.billboardMode = 7;
+  sunDisc.applyFog = false;
+  sunDisc.isPickable = false;
+
+  // drifting cloud billboards
+  const cloudTex = new Texture("/assets/terrain/clouds.png", scene);
+  cloudTex.hasAlpha = true;
+  const cloudMat = new StandardMaterial("clouds", scene);
+  cloudMat.diffuseTexture = cloudTex;
+  cloudMat.opacityTexture = cloudTex;
+  cloudMat.emissiveColor = new Color3(1, 1, 1);
+  cloudMat.disableLighting = true;
+  cloudMat.backFaceCulling = false;
+  const cloudSeeds = [0.1, 0.35, 0.55, 0.72, 0.9, 0.22];
+  const clouds = cloudSeeds.map((seed, i) => {
+    const c = MeshBuilder.CreatePlane(`cloud${i}`, { width: 120 + seed * 90, height: 36 + seed * 26 }, scene);
+    c.material = cloudMat;
+    c.billboardMode = 7;
+    c.applyFog = false;
+    c.isPickable = false;
+    return { mesh: c, seed };
+  });
+  scene.onBeforeRenderObservable.add(() => {
+    const t = performance.now() / 1000;
+    const target = camera.target;
+    clouds.forEach(({ mesh, seed }, i) => {
+      const ang = seed * Math.PI * 2 + t * 0.004 * (0.6 + seed);
+      const r = 150 + seed * 60;
+      mesh.position.set(target.x + Math.cos(ang) * r, 78 + seed * 34, target.z + Math.sin(ang) * r);
+    });
+  });
+
+  // ambient pollen drifting around the player
+  const dot = new DynamicTexture("dot", 32, scene, false);
+  const ctx = dot.getContext();
+  const grad = ctx.createRadialGradient(16, 16, 2, 16, 16, 15);
+  grad.addColorStop(0, "rgba(255,250,225,0.9)");
+  grad.addColorStop(1, "rgba(255,250,225,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 32, 32);
+  dot.update();
+  const pollen = new ParticleSystem("pollen", 40, scene);
+  pollen.particleTexture = dot;
+  pollen.minSize = 0.04;
+  pollen.maxSize = 0.12;
+  pollen.minLifeTime = 4;
+  pollen.maxLifeTime = 8;
+  pollen.emitRate = 6;
+  pollen.color1 = new BColor4(1, 0.98, 0.85, 0.55);
+  pollen.color2 = new BColor4(1, 0.95, 0.7, 0.35);
+  pollen.colorDead = new BColor4(1, 1, 1, 0);
+  pollen.gravity = new Vector3(0.05, -0.02, 0.03);
+  pollen.minEmitPower = 0.02;
+  pollen.maxEmitPower = 0.12;
+  pollen.updateSpeed = 0.012;
+  pollen.start();
+  scene.onBeforeRenderObservable.add(() => {
+    pollen.emitter = camera.target.clone();
+    pollen.minEmitBox = new Vector3(-16, -1, -16);
+    pollen.maxEmitBox = new Vector3(16, 7, 16);
+  });
   }
 
   engine.runRenderLoop(() => scene.render());

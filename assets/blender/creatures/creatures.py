@@ -52,12 +52,12 @@ def _finish(name, bm):
 def _quadruped(name, rng, body_len, body_r, leg_h, head_r, row, t, tail=True, snout=0.14, ears=0.05):
     bm = bmesh.new()
     z = leg_h + body_r * 0.5
-    bf = _blob(bm, (0, body_len * 0.1, z), body_r, 0.85, rng, subdiv=1)
-    bf += _blob(bm, (0, -body_len * 0.28, z + 0.02), body_r * 0.85, 0.85, rng)
+    bf = _blob(bm, (0, body_len * 0.1, z), body_r, 0.85, rng, subdiv=2)
+    bf += _blob(bm, (0, -body_len * 0.28, z + 0.02), body_r * 0.85, 0.85, rng, subdiv=2)
     common.paint_faces(bm, bf, row, t)
     # head + snout
     hz = z + body_r * 0.5
-    hf = _blob(bm, (0, -body_len * 0.52, hz), head_r, 0.9, rng)
+    hf = _blob(bm, (0, -body_len * 0.52, hz), head_r, 0.9, rng, subdiv=2)
     common.paint_faces(bm, hf, row, t + 0.08)
     sf = _tube(bm, (0, -body_len * 0.52, hz - 0.01), (0, -body_len * 0.52 - snout, hz - 0.03), head_r * 0.5, head_r * 0.3)
     common.paint_faces(bm, sf, row, t - 0.05)
@@ -94,7 +94,7 @@ def _biped(name, rng, h, bulk, head_r, body_row, body_t, skin_row, skin_t, hunch
         af = _tube(bm, (sx * 0.19 * bulk, -hunch * 0.8, sh_z), (sx * 0.24 * bulk, -hunch - 0.05, leg_h * 0.55), 0.05 * bulk, 0.045 * bulk)
         common.paint_faces(bm, af, skin_row, skin_t)
     # head
-    hf = _blob(bm, (0, -hunch - 0.02, sh_z + head_r * 0.9), head_r, 0.9, rng)
+    hf = _blob(bm, (0, -hunch - 0.02, sh_z + head_r * 0.9), head_r, 0.9, rng, subdiv=2)
     common.paint_faces(bm, hf, skin_row, skin_t + 0.06)
     # pointy ears for goblinoids
     for sx in (-1, 1):
