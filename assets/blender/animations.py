@@ -50,20 +50,25 @@ def _cycle(rig, name, length, step, pose_at):
 
 def build_idle(rig):
     def pose(rig, f, t):
-        breath = math.sin(TAU * t)          # one breath per loop
-        sway = math.sin(TAU * t * 2 + 1.3)  # slow secondary sway
-        _key(rig, f, "chest", rot=(0.030 * breath, 0, 0.012 * sway))
-        _key(rig, f, "spine", rot=(0.012 * breath, 0, -0.008 * sway))
-        _key(rig, f, "neck", rot=(-0.015 * breath, 0, 0))
-        _key(rig, f, "head", rot=(-0.015 * breath, 0.01 * sway, 0))
-        _key(rig, f, "shoulder.L", rot=(0, 0.03 * breath, 0))
-        _key(rig, f, "shoulder.R", rot=(0, -0.03 * breath, 0))
-        _key(rig, f, "upper_arm.L", rot=(0.035 * breath, 0, 0.05 + 0.012 * sway))
-        _key(rig, f, "upper_arm.R", rot=(0.035 * breath, 0, -0.05 - 0.012 * sway))
-        _key(rig, f, "forearm.L", rot=(-0.10 - 0.02 * breath, 0, 0))
-        _key(rig, f, "forearm.R", rot=(-0.10 - 0.02 * breath, 0, 0))
-        _key(rig, f, "hips", loc=(0, 0, 0.007 * breath))
-    return _cycle(rig, "idle", 120, 6, pose)
+        breath = math.sin(TAU * t)                    # chest breathing
+        sway = math.sin(TAU * t * 0.5 + 1.3)          # slow full-body weight shift
+        micro = math.sin(TAU * t * 3 + 0.7) * 0.3     # tiny secondary motion
+        # weight shift onto alternating legs
+        _key(rig, f, "hips", rot=(0, 0, 0.03 * sway), loc=(0.012 * sway, 0, 0.008 * breath))
+        _key(rig, f, "spine", rot=(0.014 * breath, 0, -0.02 * sway))
+        _key(rig, f, "chest", rot=(0.032 * breath, 0, -0.018 * sway))
+        _key(rig, f, "neck", rot=(-0.016 * breath, 0.01 * sway, 0))
+        _key(rig, f, "head", rot=(-0.018 * breath + micro * 0.01, 0.02 * sway, -0.015 * sway))
+        _key(rig, f, "shoulder.L", rot=(0, 0.032 * breath, 0))
+        _key(rig, f, "shoulder.R", rot=(0, -0.032 * breath, 0))
+        _key(rig, f, "upper_arm.L", rot=(0.04 * breath, 0, 0.06 + 0.02 * sway))
+        _key(rig, f, "upper_arm.R", rot=(0.04 * breath, 0, -0.06 - 0.02 * sway))
+        _key(rig, f, "forearm.L", rot=(-0.14 - 0.025 * breath, 0, 0.02))
+        _key(rig, f, "forearm.R", rot=(-0.14 - 0.025 * breath, 0, -0.02))
+        # subtle knee micro-flex to avoid locked legs
+        _key(rig, f, "shin.L", rot=(0.02 + 0.01 * sway, 0, 0))
+        _key(rig, f, "shin.R", rot=(0.02 - 0.01 * sway, 0, 0))
+    return _cycle(rig, "idle", 150, 5, pose)
 
 
 def _gait(rig, name, length, swing, arm_swing, knee, bob, lean, sway):
@@ -95,23 +100,26 @@ def _gait(rig, name, length, swing, arm_swing, knee, bob, lean, sway):
         _key(rig, f, "neck", rot=(-lean * 0.5, 0.2 * sway * s, 0))
         _key(rig, f, "head", rot=(-lean * 0.4 + 0.02 * s2, 0.3 * sway * s, 0))
 
-        # arms: counter-swing with a resting elbow bend that deepens on the back swing
-        _key(rig, f, "shoulder.L", rot=(0, -0.25 * sway * s, 0))
-        _key(rig, f, "shoulder.R", rot=(0, -0.25 * sway * s, 0))
-        _key(rig, f, "upper_arm.L", rot=(-arm_swing * s, 0, 0.06))
-        _key(rig, f, "upper_arm.R", rot=(arm_swing * s, 0, -0.06))
-        _key(rig, f, "forearm.L", rot=(-0.25 - 0.55 * arm_swing * (1 + s) / 2, 0, 0))
-        _key(rig, f, "forearm.R", rot=(-0.25 - 0.55 * arm_swing * (1 - s) / 2, 0, 0))
+        # arms: counter-swing + follow-through (forearm lags the upper arm)
+        lag = math.sin(TAU * t - 0.5)
+        _key(rig, f, "shoulder.L", rot=(0, -0.28 * sway * s, 0.04 * s))
+        _key(rig, f, "shoulder.R", rot=(0, -0.28 * sway * s, 0.04 * s))
+        _key(rig, f, "upper_arm.L", rot=(-arm_swing * s, 0, 0.07))
+        _key(rig, f, "upper_arm.R", rot=(arm_swing * s, 0, -0.07))
+        _key(rig, f, "forearm.L", rot=(-0.30 - 0.6 * arm_swing * (1 + lag) / 2, 0, 0))
+        _key(rig, f, "forearm.R", rot=(-0.30 - 0.6 * arm_swing * (1 - lag) / 2, 0, 0))
+        # vertical bob (two bounces per stride)
+        _key(rig, f, "chest", rot=(lean, -0.5 * sway * s, -0.3 * sway * s))
 
     return _cycle(rig, name, length, 2, pose)
 
 
 def build_walk(rig):
-    return _gait(rig, "walk", 32, swing=0.55, arm_swing=0.32, knee=0.85, bob=0.025, lean=0.05, sway=0.10)
+    return _gait(rig, "walk", 36, swing=0.58, arm_swing=0.38, knee=0.95, bob=0.03, lean=0.06, sway=0.12)
 
 
 def build_run(rig):
-    return _gait(rig, "run", 18, swing=0.95, arm_swing=0.70, knee=1.30, bob=0.055, lean=0.20, sway=0.14)
+    return _gait(rig, "run", 20, swing=1.05, arm_swing=0.82, knee=1.45, bob=0.07, lean=0.26, sway=0.16)
 
 
 def _swing(rig, name, length, raise_amt, chop_depth, twist):
