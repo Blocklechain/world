@@ -1,6 +1,10 @@
 import { createServer } from "node:http";
 
 import { Server } from "@colyseus/core";
+import { Encoder } from "@colyseus/schema";
+
+// the overworld ships hundreds of monsters + nodes in the initial state
+Encoder.BUFFER_SIZE = 512 * 1024;
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import Fastify from "fastify";
 

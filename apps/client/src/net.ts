@@ -28,6 +28,14 @@ export interface GameState {
 
 type Listener = () => void;
 
+export interface FxEvent {
+  kind: "attack" | "monsterAttack";
+  style?: "melee" | "archery" | "magic";
+  sid?: string;
+  monsterId?: string;
+  dmg: number;
+}
+
 export interface Net {
   room: Room;
   sessionId: string;
@@ -35,6 +43,8 @@ export interface Net {
   sendMove(x: number, z: number): void;
   sendChat(text: string): void;
   interact(nodeId: string): void;
+  attack(monsterId: string, style: string): void;
+  onFx(cb: (e: FxEvent) => void): void;
   dropSlot(slot: number): void;
   bankOpen(): void;
   bankDeposit(slot: number, all?: boolean): void;
@@ -85,6 +95,8 @@ export async function connect(name: string, token: string | null): Promise<Net> 
     emitGame();
   });
   room.onMessage(EVT.msg, (m: { text: string }) => msgCbs.forEach((cb) => cb(m.text)));
+  const fxCbs: ((e: FxEvent) => void)[] = [];
+  room.onMessage("fx", (e: FxEvent) => fxCbs.forEach((cb) => cb(e)));
 
   // depleted-node set lives in shared room state
   const depleted = () =>
@@ -98,6 +110,8 @@ export async function connect(name: string, token: string | null): Promise<Net> 
     sendMove: (x, z) => room.send(MSG.move, { x, z }),
     sendChat: (text) => room.send(MSG.chat, { text }),
     interact: (nodeId) => room.send(MSG.interact, { nodeId }),
+    attack: (monsterId, style) => room.send("attack", { monsterId, style }),
+    onFx: (cb) => fxCbs.push(cb),
     dropSlot: (slot) => room.send(MSG.invDrop, { slot }),
     bankOpen: () => room.send(MSG.bankOpen),
     bankDeposit: (slot, all) => room.send(MSG.bankDeposit, { slot, all }),

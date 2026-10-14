@@ -191,7 +191,53 @@ function AuthOverlay({ onDone }: { onDone: (auth: AuthResult | null) => void }) 
 
 type Panel = "none" | "inv" | "skills";
 
-function Hud({ net, status }: { net: Net; status: string }) {
+export interface CombatRef {
+  style: "melee" | "archery" | "magic";
+}
+
+const STYLE_ICONS = { melee: "⚔️", archery: "🏹", magic: "✨" } as const;
+
+function Hud({ net, status, combat }: { net: Net; status: string; combat: CombatRef }) {
+  const [style, setStyle] = useState(combat.style);
+  const [hp, setHp] = useState<{ hp: number; max: number } | null>(null);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const self = (net.room.state as { players?: Map<string, { hp: number; maxHp: number }> }).players?.get(
+        net.sessionId,
+      );
+      if (self) setHp((prev) => (prev?.hp === self.hp && prev?.max === self.maxHp ? prev : { hp: self.hp, max: self.maxHp }));
+    }, 300);
+    return () => clearInterval(iv);
+  }, [net]);
+
+  return (
+    <HudInner
+      net={net}
+      status={status}
+      hp={hp}
+      style={style}
+      setStyle={(s) => {
+        combat.style = s;
+        setStyle(s);
+      }}
+    />
+  );
+}
+
+function HudInner({
+  net,
+  status,
+  hp,
+  style,
+  setStyle,
+}: {
+  net: Net;
+  status: string;
+  hp: { hp: number; max: number } | null;
+  style: CombatRef["style"];
+  setStyle: (s: CombatRef["style"]) => void;
+}) {
   const [, bump] = useState(0);
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [draft, setDraft] = useState("");
@@ -231,7 +277,25 @@ function Hud({ net, status }: { net: Net; status: string }) {
 
   return (
     <>
-      <div class="status">{status}</div>
+      <div class="status">
+        {status}
+        {hp && (
+          <div class="hpbar">
+            <div class="fill" style={{ width: `${(hp.hp / hp.max) * 100}%` }} />
+            <span>
+              {hp.hp}/{hp.max}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div class="styles">
+        {(Object.keys(STYLE_ICONS) as CombatRef["style"][]).map((s) => (
+          <button key={s} class={s === style ? "on" : ""} title={s} onClick={() => setStyle(s)}>
+            {STYLE_ICONS[s]}
+          </button>
+        ))}
+      </div>
 
       <div class="drops">
         {drops.map((d, i) => (
@@ -361,8 +425,8 @@ export function mountAuth(el: HTMLElement, onDone: (auth: AuthResult | null) => 
   render(<AuthOverlay onDone={onDone} />, el);
 }
 
-export function mountHud(el: HTMLElement, net: Net, status: string) {
-  render(<Hud net={net} status={status} />, el);
+export function mountHud(el: HTMLElement, net: Net, status: string, combat: CombatRef) {
+  render(<Hud net={net} status={status} combat={combat} />, el);
 }
 
 export function mountStatus(el: HTMLElement, text: string) {

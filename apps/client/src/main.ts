@@ -1,10 +1,12 @@
 import { heightAt, regionAt } from "@world/content";
+import { FxManager } from "./fx";
+import { MonsterRenderer } from "./monsters";
 import { connect, type AuthResult, type Net } from "./net";
 import { PlayerRenderer } from "./players";
 import { ScatterManager } from "./scatter";
 import { createScene } from "./scene";
 import { TerrainManager } from "./terrain";
-import { mountAuth, mountCreate, mountHud, mountStatus } from "./ui";
+import { mountAuth, mountCreate, mountHud, mountStatus, type CombatRef } from "./ui";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const hudEl = document.getElementById("hud") as HTMLElement;
@@ -62,10 +64,35 @@ async function start(auth: AuthResult | null) {
   const renderer = new PlayerRenderer(world.scene, net.room, net.sessionId, (root) => {
     for (const m of root.getChildMeshes()) world.shadows.addShadowCaster(m, false);
   });
+  const monsters = new MonsterRenderer(world.scene, net.room);
+  const fx = new FxManager(world.scene);
+  const combat: CombatRef = { style: "melee" };
+
+  net.onFx((e) => {
+    if (e.kind === "attack" && e.monsterId) {
+      const to = monsters.monsterAt(e.monsterId);
+      const attacker = (net.room.state as { players?: Map<string, { x: number; z: number }> }).players?.get(
+        e.sid ?? "",
+      );
+      if (to && attacker && (e.style === "archery" || e.style === "magic")) {
+        fx.shoot(attacker, to, e.style);
+      }
+      if (to) fx.splat(to.x, to.z, 1.7, e.dmg > 0 ? String(e.dmg) : "0", e.dmg > 0 ? "hit" : "miss");
+    } else if (e.kind === "monsterAttack" && e.monsterId) {
+      monsters.lunge(e.monsterId);
+      const victim = (net.room.state as { players?: Map<string, { x: number; z: number }> }).players?.get(
+        e.sid ?? "",
+      );
+      if (victim) fx.splat(victim.x, victim.z, 1.9, e.dmg > 0 ? String(e.dmg) : "0", e.dmg > 0 ? "hurt" : "miss");
+    }
+  });
+
+  // debug handle (dev console only)
+  (window as unknown as Record<string, unknown>).__world = { net, monsters, renderer, scene: world.scene };
 
   const statusFor = (x: number, z: number) =>
     `${regionAt(x, z).name} — ${auth?.name ?? guestName}`;
-  mountHud(hudEl, net, statusFor(0, 0));
+  mountHud(hudEl, net, statusFor(0, 0), combat);
   let lastRegion = "";
 
   net.room.onLeave(() => mountStatus(hudEl, "Disconnected — reload to rejoin"));
@@ -84,6 +111,11 @@ async function start(auth: AuthResult | null) {
     const pick = world.scene.pick(e.clientX, e.clientY, (m) => m.name.startsWith("terrain:"));
     if (!pick?.pickedPoint) return;
     const { x, z } = pick.pickedPoint;
+    const monster = monsters.nearest(x, z);
+    if (monster) {
+      net.attack(monster.id, combat.style);
+      return;
+    }
     const node = scatter.nearestNode(x, z);
     if (node && !net.isDepleted(node.id)) {
       net.interact(node.id);
@@ -95,9 +127,12 @@ async function start(auth: AuthResult | null) {
   });
 
   world.scene.onBeforeRenderObservable.add(() => {
-    renderer.update(world.engine.getDeltaTime());
+    const dt = world.engine.getDeltaTime();
+    renderer.update(dt);
+    fx.update(dt);
     const self = renderer.getSelfPosition();
     if (!self) return;
+    monsters.update(dt, self.x, self.z);
     terrain.update(self.x, self.z);
     scatter.update(self.x, self.z);
     const ty = heightAt(self.x, self.z) + 1.1;
@@ -107,7 +142,7 @@ async function start(auth: AuthResult | null) {
     const region = regionAt(self.x, self.z).name;
     if (region !== lastRegion) {
       lastRegion = region;
-      mountHud(hudEl, net, statusFor(self.x, self.z));
+      mountHud(hudEl, net, statusFor(self.x, self.z), combat);
     }
   });
 }

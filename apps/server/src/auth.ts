@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createRequire } from "node:module";
 
 // vendored wasm-pack nodejs build (CJS)
@@ -9,15 +9,18 @@ const wasm = require("@world/blockle-wasm-node") as {
 };
 
 const CHALLENGE_TTL_MS = 5 * 60_000;
-const SESSION_TTL_MS = 24 * 3_600_000;
+const SESSION_TTL_MS = 7 * 24 * 3_600_000;
+
+// stateless HMAC tokens: logins survive server restarts
+const TOKEN_KEY = createHash("sha256")
+  .update("world-session:" + (process.env.WORLD_KEYSTORE_SECRET ?? "dev-only-keystore-secret"))
+  .digest();
 
 const challenges = new Map<string, { nonce: string; exp: number }>();
-const sessions = new Map<string, { address: string; exp: number }>();
 
 function sweep() {
   const now = Date.now();
   for (const [k, v] of challenges) if (v.exp < now) challenges.delete(k);
-  for (const [k, v] of sessions) if (v.exp < now) sessions.delete(k);
 }
 setInterval(sweep, 60_000).unref();
 
@@ -48,16 +51,30 @@ export function verifyChallenge(address: string, publicKey: string, signature: s
 }
 
 export function createSession(address: string): string {
-  const token = randomBytes(32).toString("hex");
-  sessions.set(token, { address, exp: Date.now() + SESSION_TTL_MS });
-  return token;
+  const exp = Date.now() + SESSION_TTL_MS;
+  const body = `${address}.${exp}`;
+  const mac = createHmac("sha256", TOKEN_KEY).update(body).digest("base64url");
+  return Buffer.from(body).toString("base64url") + "." + mac;
 }
 
 export function sessionAddress(token: unknown): string | null {
   if (typeof token !== "string") return null;
-  const s = sessions.get(token);
-  if (!s || s.exp < Date.now()) return null;
-  return s.address;
+  const dot = token.lastIndexOf(".");
+  if (dot < 0) return null;
+  let body: string;
+  try {
+    body = Buffer.from(token.slice(0, dot), "base64url").toString("utf8");
+  } catch {
+    return null;
+  }
+  const mac = createHmac("sha256", TOKEN_KEY).update(body).digest("base64url");
+  const given = token.slice(dot + 1);
+  if (mac.length !== given.length || !timingSafeEqual(Buffer.from(mac), Buffer.from(given))) return null;
+  const sep = body.lastIndexOf(".");
+  const address = body.slice(0, sep);
+  const exp = Number(body.slice(sep + 1));
+  if (!Number.isFinite(exp) || exp < Date.now()) return null;
+  return address;
 }
 
 const HEX = /^[0-9a-f]+$/;

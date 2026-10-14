@@ -107,6 +107,8 @@ class PlayerAvatar {
   }
 
   play(name: string, speedRatio = 1) {
+    // combat styles reuse the tool-swing until dedicated clips land
+    if (name === "melee" || name === "shoot" || name === "cast") name = "chop";
     const clip =
       this.clips.get(name) ??
       this.clips.get(name === "chop" || name === "mine" || name === "swim" ? "idle" : name);
@@ -206,14 +208,7 @@ export class PlayerRenderer {
         if (p.moving) av.root.rotation.y = p.heading + HEADING_OFFSET;
       }
 
-      const action =
-        p.action === "swim"
-          ? "swim"
-          : isMoving
-            ? "run"
-            : p.action === "chop" || p.action === "mine"
-              ? p.action
-              : "idle";
+      const action = p.action === "swim" ? "swim" : isMoving ? "run" : p.action || "idle";
       av.play(action, action === "run" ? 1.35 : 1);
     });
 

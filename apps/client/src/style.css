@@ -161,6 +161,74 @@ body {
   opacity: 0.85;
   text-shadow: 0 1px 2px #000;
 }
+.hpbar {
+  position: relative;
+  margin-top: 6px;
+  width: 150px;
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(10, 8, 6, 0.7);
+  border: 1px solid #4a3f30;
+  overflow: hidden;
+}
+.hpbar .fill {
+  height: 100%;
+  background: linear-gradient(#d04a3a, #8e2a20);
+  transition: width 0.25s;
+}
+.hpbar span {
+  position: absolute;
+  inset: 0;
+  text-align: center;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px #000;
+}
+.styles {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.styles button {
+  width: 44px;
+  height: 44px;
+  font-size: 19px;
+  border-radius: 12px;
+  border: 1px solid #4a3f30;
+  background: rgba(24, 20, 16, 0.8);
+  pointer-events: auto;
+}
+.styles button.on {
+  border-color: #e8c33a;
+  background: #3a3227;
+}
+.splats {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.splat {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  font-size: 17px;
+  font-weight: 800;
+  text-shadow: 0 1px 3px #000;
+}
+.splat.hit {
+  color: #ffd34d;
+}
+.splat.miss {
+  color: #9ab;
+  font-size: 13px;
+}
+.splat.hurt {
+  color: #ff6b5a;
+}
 .toast {
   position: absolute;
   top: 18%;
