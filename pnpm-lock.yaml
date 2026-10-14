@@ -16,6 +16,15 @@ importers:
       '@babylonjs/loaders':
         specifier: ^7.35.0
         version: 7.54.3(@babylonjs/core@7.54.3)(babylonjs-gltf2interface@7.54.3)
+      '@babylonjs/materials':
+        specifier: ^7.35.0
+        version: 7.54.3(@babylonjs/core@7.54.3)
+      '@world/blockle-wasm':
+        specifier: workspace:*
+        version: link:../../packages/blockle-wasm
+      '@world/content':
+        specifier: workspace:*
+        version: link:../../packages/content
       '@world/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -50,6 +59,12 @@ importers:
       '@colyseus/ws-transport':
         specifier: ^0.16.0
         version: 0.16.5(@colyseus/core@0.16.26(@colyseus/schema@3.0.76)(@pm2/io@6.1.0))
+      '@world/blockle-wasm-node':
+        specifier: workspace:*
+        version: link:../../packages/blockle-wasm-node
+      '@world/content':
+        specifier: workspace:*
+        version: link:../../packages/content
       '@world/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -70,6 +85,12 @@ importers:
   packages/blockle-wasm: {}
 
   packages/blockle-wasm-node: {}
+
+  packages/content:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
 
   packages/shared:
     devDependencies:
@@ -612,6 +633,11 @@ packages:
     peerDependencies:
       '@babylonjs/core': ^7.0.0
       babylonjs-gltf2interface: ^7.0.0
+
+  '@babylonjs/materials@7.54.3':
+    resolution: {integrity: sha512-WYqvpX6+iR0/h/X0SaoFZH2hD1nDIzu9Qo86/yEK8R+whhShgpkJ9VDdTE1yYNBxf5azFoUrxWcMy3OXNn3Z3w==}
+    peerDependencies:
+      '@babylonjs/core': ^7.0.0
 
   '@colyseus/clock@1.0.1':
     resolution: {integrity: sha512-HLovmkerzZ7aEckKuHFnql+sXCChi37WRc88duWxufiH5wVMNomBjlqQYVxaORgA+4vLIRd0/jabu6DAbkSfaA==}
@@ -3163,6 +3189,10 @@ snapshots:
     dependencies:
       '@babylonjs/core': 7.54.3
       babylonjs-gltf2interface: 7.54.3
+
+  '@babylonjs/materials@7.54.3(@babylonjs/core@7.54.3)':
+    dependencies:
+      '@babylonjs/core': 7.54.3
 
   '@colyseus/clock@1.0.1': {}
 

@@ -6,6 +6,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/loaders/glTF/2.0";
 import type { Room } from "colyseus.js";
 
+import { heightAt } from "@world/content";
 import { RUN_SPEED } from "@world/shared";
 
 interface PlayerLike {
@@ -14,6 +15,7 @@ interface PlayerLike {
   heading: number;
   moving: boolean;
   name: string;
+  action: string;
 }
 
 /** Yaw offset between the GLB's authored forward and world heading 0. */
@@ -37,7 +39,7 @@ class PlayerAvatar {
   }
 
   play(name: string, speedRatio = 1) {
-    const clip = this.clips.get(name);
+    const clip = this.clips.get(name) ?? this.clips.get(name === "chop" || name === "mine" ? "idle" : name);
     if (!clip || this.current === clip) {
       if (clip) clip.speedRatio = speedRatio;
       return;
@@ -67,6 +69,7 @@ export class PlayerRenderer {
     private scene: Scene,
     private room: Room,
     private selfId: string,
+    private onAvatar?: (root: TransformNode) => void,
   ) {
     void SceneLoader.LoadAssetContainerAsync("/assets/characters/", "base_body.glb", scene).then(
       (c) => (this.container = c),
@@ -95,9 +98,11 @@ export class PlayerRenderer {
         av = new PlayerAvatar(this.scene, this.container!, id);
         av.root.position.set(p.x, 0, p.z);
         this.avatars.set(id, av);
+        this.onAvatar?.(av.root);
       }
       const pos = av.root.position;
       let isMoving: boolean;
+      pos.y = heightAt(pos.x, pos.z);
 
       if (id === this.selfId && this.localTarget) {
         const step = (RUN_SPEED * dtMs) / 1000;
@@ -126,7 +131,8 @@ export class PlayerRenderer {
         if (p.moving) av.root.rotation.y = p.heading + HEADING_OFFSET;
       }
 
-      av.play(isMoving ? "run" : "idle", isMoving ? 1.35 : 1);
+      const action = isMoving ? "run" : p.action === "chop" || p.action === "mine" ? p.action : "idle";
+      av.play(action, action === "run" ? 1.35 : 1);
     });
 
     for (const [id, av] of this.avatars) {

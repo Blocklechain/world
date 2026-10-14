@@ -26,55 +26,319 @@ body {
   pointer-events: none;
   color: #eee;
 }
-#hud .status {
+#hud button,
+#hud input,
+#hud .panelbox,
+#hud .chat {
+  pointer-events: auto;
+}
+
+/* ---- auth ---- */
+.auth {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 50% 30%, #2a2520, #14110d 75%);
+  pointer-events: auto;
+}
+.auth .panel {
+  width: min(92vw, 360px);
+  padding: 28px 24px;
+  background: rgba(24, 20, 16, 0.92);
+  border: 1px solid #4a3f30;
+  border-radius: 14px;
+  text-align: center;
+}
+.auth h1 {
+  font-size: 34px;
+  letter-spacing: 0.35em;
+  color: #e8c33a;
+}
+.auth .sub {
+  margin: 6px 0 18px;
+  color: #a79a85;
+  font-size: 13px;
+}
+.auth .tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.auth .tabs button {
+  flex: 1;
+  padding: 9px;
+  background: #241f19;
+  color: #a79a85;
+  border: 1px solid #3a3227;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.auth .tabs button.on {
+  background: #3a3227;
+  color: #e8c33a;
+}
+.auth form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.auth input {
+  padding: 11px 12px;
+  border-radius: 8px;
+  border: 1px solid #3a3227;
+  background: #1b1712;
+  color: #eee;
+  font-size: 16px;
+}
+.auth .err {
+  color: #e07a5f;
+  font-size: 13px;
+}
+.auth .go {
+  margin-top: 4px;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: #e8c33a;
+  color: #241f19;
+  font-weight: 700;
+  font-size: 15px;
+}
+.auth .guest {
+  margin-top: 14px;
+  background: none;
+  border: none;
+  color: #8a7d68;
+  text-decoration: underline;
+  font-size: 13px;
+}
+
+/* ---- hud chrome ---- */
+.status {
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 8px);
   left: 10px;
   font-size: 12px;
-  opacity: 0.8;
+  opacity: 0.85;
   text-shadow: 0 1px 2px #000;
 }
-#hud .chat {
+.toast {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 16, 12, 0.85);
+  border: 1px solid #4a3f30;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.drops {
+  position: absolute;
+  top: 26%;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+}
+.drops .drop {
+  color: #ffe08a;
+  font-weight: 700;
+  font-size: 14px;
+  text-shadow: 0 1px 3px #000;
+  animation: rise 2.4s ease-out forwards;
+}
+@keyframes rise {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-46px);
+  }
+}
+
+.side {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.side button {
+  width: 46px;
+  height: 46px;
+  font-size: 20px;
+  border-radius: 12px;
+  border: 1px solid #4a3f30;
+  background: rgba(24, 20, 16, 0.8);
+  backdrop-filter: blur(4px);
+}
+.side button.on {
+  background: #3a3227;
+  border-color: #e8c33a;
+}
+
+/* ---- panels ---- */
+.panelbox {
+  position: absolute;
+  right: 64px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(78vw, 300px);
+  max-height: 70vh;
+  overflow-y: auto;
+  background: rgba(24, 20, 16, 0.92);
+  border: 1px solid #4a3f30;
+  border-radius: 12px;
+  padding: 12px;
+}
+.panelbox h3 {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #e8c33a;
+  margin-bottom: 10px;
+}
+.panelbox .hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #8a7d68;
+}
+.inv .grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.inv .cell {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  background: #1b1712;
+  border: 1px solid #312a21;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.75);
+}
+.inv .cell.full {
+  border-color: #4a3f30;
+}
+
+.skills .skill {
+  display: grid;
+  grid-template-columns: 1fr 28px;
+  gap: 2px 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+.skills .nm {
+  text-transform: capitalize;
+  font-size: 13px;
+}
+.skills .lv {
+  text-align: right;
+  color: #ffe08a;
+  font-weight: 700;
+}
+.skills .bar {
+  grid-column: 1 / 3;
+  height: 4px;
+  border-radius: 2px;
+  background: #1b1712;
+  overflow: hidden;
+}
+.skills .fill {
+  height: 100%;
+  background: #e8c33a;
+}
+
+.bank {
+  left: 10px;
+  right: auto;
+  width: min(84vw, 320px);
+}
+.bankrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid #241f19;
+  font-size: 13px;
+}
+.bankrow .nm {
+  flex: 1;
+}
+.bankrow .qty {
+  color: #a79a85;
+}
+.bankrow button {
+  padding: 4px 9px;
+  border-radius: 6px;
+  border: 1px solid #4a3f30;
+  background: #241f19;
+  color: #eee;
+  font-size: 12px;
+}
+.tintdot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* ---- chat ---- */
+.chat {
   position: absolute;
   left: 8px;
-  right: 8px;
+  right: 72px;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
-  pointer-events: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
   max-width: 420px;
 }
-#hud .chat .log {
-  max-height: 26vh;
+.chat .log {
+  max-height: 18vh;
   overflow-y: auto;
   font-size: 13px;
   line-height: 1.45;
   text-shadow: 0 1px 2px #000;
   mask-image: linear-gradient(to bottom, transparent, black 15%);
+  pointer-events: none;
 }
-#hud .chat .log .sys {
+.chat.open .log {
+  pointer-events: auto;
+  max-height: 30vh;
+}
+.chat .log .sys {
   color: #c9b458;
   font-style: italic;
 }
-#hud .chat .log b {
+.chat .log b {
   color: #9fd0ff;
 }
-#hud .chat form {
+.chat form {
   display: flex;
   gap: 6px;
 }
-#hud .chat input {
+.chat input {
   flex: 1;
   padding: 10px 12px;
   border: 1px solid #444;
   border-radius: 8px;
   background: rgba(10, 10, 10, 0.65);
   color: #eee;
-  font-size: 16px; /* prevents iOS zoom-on-focus */
+  font-size: 16px;
   backdrop-filter: blur(6px);
 }
-#hud .chat button {
+.chat button {
   padding: 10px 14px;
   border: 1px solid #555;
   border-radius: 8px;

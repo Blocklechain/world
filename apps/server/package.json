@@ -17,7 +17,9 @@
     "@colyseus/ws-transport": "^0.16.0",
     "@world/shared": "workspace:*",
     "fastify": "^5.0.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "@world/content": "workspace:*",
+    "@world/blockle-wasm-node": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20",

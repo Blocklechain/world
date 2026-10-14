@@ -3,32 +3,35 @@
 export const TICK_RATE = 20; // Hz
 export const TICK_MS = 1000 / TICK_RATE;
 export const INTERP_MS = 100; // client render delay for remote entities
-export const ZONE_SHARD_CAP = 150; // players per zone instance
+export const ZONE_SHARD_CAP = 150; // players per overworld instance
 
 export const WALK_SPEED = 2.2; // m/s
 export const RUN_SPEED = 4.4; // m/s
 
-/** v1 zones. Lore: the fallen kingdom of Veyra on the continent of Aldermoor. */
-export const ZONES = {
-  hearthmere: { name: "Hearthmere", kind: "town", size: 96 }, // safe starter town
-  thornfell: { name: "Thornfell Forest", kind: "field", size: 160 }, // lv 1–15
-  gloamdeep: { name: "Gloamdeep Mine", kind: "cavern", size: 128 }, // lv 10–25
-  sunken_keep: { name: "The Sunken Keep", kind: "dungeon", size: 112 }, // lv 20–30
-} as const;
-export type ZoneId = keyof typeof ZONES;
-export const DEFAULT_ZONE: ZoneId = "hearthmere";
+/** The single seamless overworld; caves/dungeons become their own rooms. */
+export const DEFAULT_ZONE = "overworld";
 
 /** Client -> server messages (Colyseus message types). */
 export const MSG = {
-  move: "move", // { x: number, z: number } tap-to-move target
-  chat: "chat", // { text: string }
-  stop: "stop", // {}
+  move: "move", // { x, z } tap-to-move target
+  chat: "chat", // { text }
+  stop: "stop",
+  interact: "interact", // { nodeId }
+  invDrop: "inv:drop", // { slot }
+  bankOpen: "bank:open",
+  bankDeposit: "bank:deposit", // { slot, all? }
+  bankWithdraw: "bank:withdraw", // { itemId, qty }
 } as const;
 
-/** Server -> client broadcast types. */
+/** Server -> client messages. */
 export const EVT = {
-  chat: "chat", // { from: string, text: string, ts: number }
-  system: "system", // { text: string }
+  chat: "chat", // { from, text, ts }
+  system: "system", // { text }
+  profile: "profile", // { address, skills, inv, bankPos }
+  inv: "inv", // { inv: (itemId|null)[] }
+  xp: "xp", // { skill, xp, total, level }
+  bank: "bank", // { open, entries? }
+  msg: "msg", // { text } — local game feedback
 } as const;
 
 export interface MoveMsg {

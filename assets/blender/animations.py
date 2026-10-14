@@ -114,9 +114,44 @@ def build_run(rig):
     return _gait(rig, "run", 18, swing=0.95, arm_swing=0.70, knee=1.30, bob=0.055, lean=0.20, sway=0.14)
 
 
+def _swing(rig, name, length, raise_amt, chop_depth, twist):
+    """Repeating two-arm tool swing: wind up high, strike down-forward."""
+
+    def pose(rig, f, t):
+        # ease-out strike: slow raise (0..0.6), fast fall (0.6..0.8), recover
+        if t < 0.6:
+            k = t / 0.6  # winding up
+            arm = -raise_amt * math.sin(k * math.pi / 2)
+            lean = 0.04
+        elif t < 0.8:
+            k = (t - 0.6) / 0.2
+            arm = -raise_amt + (raise_amt + chop_depth) * (k * k)
+            lean = 0.04 + 0.14 * k
+        else:
+            k = (t - 0.8) / 0.2
+            arm = chop_depth * (1 - k)
+            lean = 0.18 * (1 - k) + 0.04 * k
+        for side, off in (("L", 0.05), ("R", -0.05)):
+            _key(rig, f, f"upper_arm.{side}", rot=(arm, 0, off * (1 + twist)))
+            _key(rig, f, f"forearm.{side}", rot=(-0.35 - 0.25 * max(0.0, -arm), 0, 0))
+        _key(rig, f, "chest", rot=(lean, 0, twist * math.sin(TAU * t)))
+        _key(rig, f, "spine", rot=(lean * 0.5, 0, 0))
+        _key(rig, f, "hips", loc=(0, 0, -0.02 * math.sin(TAU * t)))
+
+    return _cycle(rig, name, length, 2, pose)
+
+
+def build_chop(rig):
+    return _swing(rig, "chop", 36, raise_amt=1.9, chop_depth=0.5, twist=0.10)
+
+
+def build_mine(rig):
+    return _swing(rig, "mine", 32, raise_amt=1.5, chop_depth=0.75, twist=0.05)
+
+
 def build_all(rig):
     bpy.context.scene.render.fps = FPS
-    acts = [build_idle(rig), build_walk(rig), build_run(rig)]
+    acts = [build_idle(rig), build_walk(rig), build_run(rig), build_chop(rig), build_mine(rig)]
     ad = rig.animation_data
     ad.action = None
     for t in list(ad.nla_tracks):

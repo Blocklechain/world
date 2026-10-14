@@ -1,57 +1,100 @@
-import { DEFAULT_ZONE, ZONES } from "@world/shared";
-import { connect, type Net } from "./net";
+import { heightAt, regionAt } from "@world/content";
+import { connect, type AuthResult, type Net } from "./net";
 import { PlayerRenderer } from "./players";
+import { ScatterManager } from "./scatter";
 import { createScene } from "./scene";
-import { mountHud } from "./ui";
+import { TerrainManager } from "./terrain";
+import { mountAuth, mountHud, mountStatus } from "./ui";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const hudEl = document.getElementById("hud") as HTMLElement;
 
-const world = createScene(canvas, DEFAULT_ZONE);
-mountHud(hudEl, null, "Connecting…");
+const world = createScene(canvas);
+const terrain = new TerrainManager(world.scene);
 
-const name = localStorage.getItem("world:name") ?? `Wanderer${Math.floor(Math.random() * 999)}`;
-localStorage.setItem("world:name", name);
+function storedAuth(): AuthResult | null {
+  try {
+    return JSON.parse(localStorage.getItem("world:auth") ?? "null");
+  } catch {
+    return null;
+  }
+}
 
-let net: Net | null = null;
-let renderer: PlayerRenderer | null = null;
+const existing = storedAuth();
+if (existing) {
+  void start(existing);
+} else {
+  mountAuth(hudEl, (auth) => void start(auth));
+}
 
-connect(name, DEFAULT_ZONE)
-  .then((n) => {
-    net = n;
-    renderer = new PlayerRenderer(world.scene, n.room, n.sessionId);
-    mountHud(hudEl, n, `${ZONES[DEFAULT_ZONE].name} — ${name}`);
-    n.room.onLeave(() => mountHud(hudEl, n, "Disconnected — reload to rejoin"));
-  })
-  .catch((err) => {
+async function start(auth: AuthResult | null) {
+  mountStatus(hudEl, "Entering Veyra…");
+  const guestName = localStorage.getItem("world:name") ?? `Wanderer${Math.floor(Math.random() * 999)}`;
+  localStorage.setItem("world:name", guestName);
+
+  let net: Net;
+  try {
+    net = await connect(auth?.name ?? guestName, auth?.token ?? null);
+  } catch (err) {
     console.error(err);
-    mountHud(hudEl, null, "Could not reach the server");
+    localStorage.removeItem("world:auth");
+    mountAuth(hudEl, (a) => void start(a));
+    return;
+  }
+
+  const scatter = new ScatterManager(world.scene, (id) => net.isDepleted(id));
+  void scatter.load();
+  net.onDepletedChange(() => scatter.markDirty());
+
+  const renderer = new PlayerRenderer(world.scene, net.room, net.sessionId, (root) => {
+    for (const m of root.getChildMeshes()) world.shadows.addShadowCaster(m, false);
   });
 
-// tap-to-move: short taps only, so camera drags don't move the player
-let downAt = 0;
-let downPos = { x: 0, y: 0 };
-canvas.addEventListener("pointerdown", (e) => {
-  downAt = performance.now();
-  downPos = { x: e.clientX, y: e.clientY };
-});
-canvas.addEventListener("pointerup", (e) => {
-  const dt = performance.now() - downAt;
-  const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
-  if (dt > 350 || moved > 12 || !net || !renderer) return;
-  const pick = world.scene.pick(e.clientX, e.clientY, (m) => m.name === "ground");
-  if (pick?.pickedPoint) {
-    net.sendMove(pick.pickedPoint.x, pick.pickedPoint.z);
-    renderer.setLocalTarget(pick.pickedPoint.x, pick.pickedPoint.z);
-  }
-});
+  const statusFor = (x: number, z: number) =>
+    `${regionAt(x, z).name} — ${auth?.name ?? guestName}`;
+  mountHud(hudEl, net, statusFor(0, 0));
+  let lastRegion = "";
 
-// camera follows the local player
-world.scene.onBeforeRenderObservable.add(() => {
-  renderer?.update(world.engine.getDeltaTime());
-  const self = renderer?.getSelfPosition();
-  if (self) {
+  net.room.onLeave(() => mountStatus(hudEl, "Disconnected — reload to rejoin"));
+
+  // tap-to-move / tap-to-gather (short taps only; drags orbit the camera)
+  let downAt = 0;
+  let downPos = { x: 0, y: 0 };
+  canvas.addEventListener("pointerdown", (e) => {
+    downAt = performance.now();
+    downPos = { x: e.clientX, y: e.clientY };
+  });
+  canvas.addEventListener("pointerup", (e) => {
+    const dt = performance.now() - downAt;
+    const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+    if (dt > 350 || moved > 12) return;
+    const pick = world.scene.pick(e.clientX, e.clientY, (m) => m.name.startsWith("terrain:"));
+    if (!pick?.pickedPoint) return;
+    const { x, z } = pick.pickedPoint;
+    const node = scatter.nearestNode(x, z);
+    if (node && !net.isDepleted(node.id)) {
+      net.interact(node.id);
+      renderer.setLocalTarget(node.x, node.z);
+    } else {
+      net.sendMove(x, z);
+      renderer.setLocalTarget(x, z);
+    }
+  });
+
+  world.scene.onBeforeRenderObservable.add(() => {
+    renderer.update(world.engine.getDeltaTime());
+    const self = renderer.getSelfPosition();
+    if (!self) return;
+    terrain.update(self.x, self.z);
+    scatter.update(self.x, self.z);
+    const ty = heightAt(self.x, self.z) + 1.1;
     world.camera.target.x += (self.x - world.camera.target.x) * 0.12;
     world.camera.target.z += (self.z - world.camera.target.z) * 0.12;
-  }
-});
+    world.camera.target.y += (ty - world.camera.target.y) * 0.08;
+    const region = regionAt(self.x, self.z).name;
+    if (region !== lastRegion) {
+      lastRegion = region;
+      mountHud(hudEl, net, statusFor(self.x, self.z));
+    }
+  });
+}

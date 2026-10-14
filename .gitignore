@@ -13,3 +13,4 @@ coverage/
 *.blend1
 __pycache__/
 *.pyc
+apps/server/data/

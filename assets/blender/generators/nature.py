@@ -1,0 +1,276 @@
+"""World props: trees, ore rocks, gatherables, town and scenery pieces.
+
+Everything samples the shared GEAR palette (one material world-wide keeps the
+whole overworld at minimal draw calls; foliage greens ride the adamant/gem
+bands, ores ride their tier bands).
+
+Each species is one mesh, origin at ground level, authored at scale 1.
+build_all() regenerates and exports every GLB under assets/out/nature/.
+"""
+import math
+
+import bmesh
+import bpy
+from mathutils import Matrix, Vector
+
+try:
+    import common
+except ImportError:
+    from . import common
+
+
+def _blob(bm, center, radius, squash, rng, jitter=0.25):
+    """Organic low-poly blob: icosphere subdiv 1, jittered verts."""
+    res = bmesh.ops.create_icosphere(bm, subdivisions=1, radius=radius)
+    verts = res["verts"]
+    for v in verts:
+        n = (v.co - Vector((0, 0, 0))).normalized()
+        v.co += n * (rng.uniform(-jitter, jitter) * radius)
+        v.co.z *= squash
+        v.co += Vector(center)
+    return [f for f in bm.faces if any(v in verts for v in f.verts)]
+
+
+def _trunk(bm, rng, height, r0, r1, bend=0.25, n=6):
+    rings = []
+    segs = 3
+    bx = rng.uniform(-bend, bend)
+    by = rng.uniform(-bend, bend)
+    for i in range(segs + 1):
+        t = i / segs
+        r = r0 + (r1 - r0) * t
+        cx = bx * t * t * height
+        cy = by * t * t * height
+        ring = [
+            bm.verts.new((cx + r * math.cos(2 * math.pi * k / n), cy + r * math.sin(2 * math.pi * k / n), t * height))
+            for k in range(n)
+        ]
+        rings.append(ring)
+    faces = []
+    for a, b in zip(rings, rings[1:]):
+        for i in range(n):
+            faces.append(bm.faces.new((a[i], a[(i + 1) % n], b[(i + 1) % n], b[i])))
+    faces.append(bm.faces.new(tuple(reversed(rings[0]))))
+    faces.append(bm.faces.new(tuple(rings[-1])))
+    top = Vector((bx * height, by * height, height))
+    return faces, top
+
+
+def _finish(name, bm):
+    old = bpy.data.objects.get(name)
+    if old:
+        bpy.data.objects.remove(old, do_unlink=True)
+    return common.finish_object(name, bm)
+
+
+# ---- trees -----------------------------------------------------------------
+
+TREES = {
+    #            trunk_row  canopy_row  canopy_t  height  droop
+    "alderwood": ("wood", "adamant", 0.55, 3.4, False),
+    "emberbirch": ("bone", "accent", 0.55, 4.2, False),
+    "silverwillow": ("stone", "gem", 0.7, 4.6, True),
+    "duskyew": ("grip", "runic", 0.45, 5.0, False),
+}
+
+
+def tree(species: str, seed: int = 0):
+    trunk_row, canopy_row, canopy_t, height, droop = TREES[species]
+    r = common.rng(seed, "tree", species)
+    bm = bmesh.new()
+    tf, top = _trunk(bm, r, height * 0.55, 0.22, 0.12)
+    common.paint_faces(bm, tf, trunk_row, 0.4)
+    blobs = 3 if not droop else 4
+    for i in range(blobs):
+        ang = r.uniform(0, math.tau)
+        d = r.uniform(0.1, 0.65)
+        c = top + Vector((math.cos(ang) * d, math.sin(ang) * d, r.uniform(0.1, height * 0.28)))
+        radius = height * r.uniform(0.17, 0.26)
+        squash = 0.75 if not droop else 1.25
+        bf = _blob(bm, c, radius, squash, r)
+        common.paint_faces(bm, bf, canopy_row, canopy_t + r.uniform(-0.12, 0.12))
+    return _finish(f"tree_{species}", bm)
+
+
+def stump(seed: int = 0):
+    r = common.rng(seed, "stump")
+    bm = bmesh.new()
+    tf, _ = _trunk(bm, r, 0.45, 0.22, 0.19, bend=0.05)
+    common.paint_faces(bm, tf, "wood", 0.45)
+    return _finish("tree_stump", bm)
+
+
+# ---- rocks -----------------------------------------------------------------
+
+ORE_ROWS = {
+    "copper_rock": ("copper", 0.6),
+    "iron_rock": ("iron", 0.55),
+    "coal_rock": ("grip", 0.25),
+    "mithril_rock": ("mithril", 0.6),
+    "adamant_rock": ("adamant", 0.6),
+    "rune_rock": ("runic", 0.65),
+}
+
+
+def ore_rock(species: str, seed: int = 0):
+    ore_row, ore_t = ORE_ROWS[species]
+    r = common.rng(seed, "rock", species)
+    bm = bmesh.new()
+    for i in range(3):
+        ang = r.uniform(0, math.tau)
+        d = r.uniform(0, 0.45)
+        radius = r.uniform(0.45, 0.8) * (1.15 if i == 0 else 0.8)
+        c = (math.cos(ang) * d, math.sin(ang) * d, radius * 0.45)
+        bf = _blob(bm, c, radius, 0.7, r, jitter=0.35)
+        common.paint_faces(bm, bf, "stone", r.uniform(0.35, 0.55))
+    # ore chunks studding the rock
+    for i in range(5):
+        ang = r.uniform(0, math.tau)
+        c = (math.cos(ang) * 0.55, math.sin(ang) * 0.55, r.uniform(0.25, 0.7))
+        bf = _blob(bm, c, r.uniform(0.1, 0.17), 1.0, r, jitter=0.2)
+        common.paint_faces(bm, bf, ore_row, ore_t + r.uniform(-0.1, 0.1))
+    return _finish(species, bm)
+
+
+def rubble(seed: int = 0):
+    r = common.rng(seed, "rubble")
+    bm = bmesh.new()
+    for i in range(4):
+        ang = r.uniform(0, math.tau)
+        d = r.uniform(0.1, 0.6)
+        bf = _blob(bm, (math.cos(ang) * d, math.sin(ang) * d, 0.1), r.uniform(0.14, 0.26), 0.55, r)
+        common.paint_faces(bm, bf, "stone", r.uniform(0.3, 0.45))
+    return _finish("rock_rubble", bm)
+
+
+def boulder(seed: int = 0):
+    r = common.rng(seed, "boulder")
+    bm = bmesh.new()
+    bf = _blob(bm, (0, 0, 0.55), 0.9, 0.75, r, jitter=0.4)
+    common.paint_faces(bm, bf, "stone", 0.42)
+    return _finish("boulder", bm)
+
+
+# ---- gatherable patches ----------------------------------------------------
+
+def reeds(seed: int = 0):
+    r = common.rng(seed, "reeds")
+    bm = bmesh.new()
+    for i in range(9):
+        ang = r.uniform(0, math.tau)
+        d = r.uniform(0, 0.5)
+        h = r.uniform(0.9, 1.6)
+        x, y = math.cos(ang) * d, math.sin(ang) * d
+        base = [bm.verts.new((x + 0.03 * math.cos(a), y + 0.03 * math.sin(a), 0)) for a in (0, 2.1, 4.2)]
+        tip = bm.verts.new((x + r.uniform(-0.1, 0.1), y + r.uniform(-0.1, 0.1), h))
+        faces = [bm.faces.new((base[k], base[(k + 1) % 3], tip)) for k in range(3)]
+        common.paint_faces(bm, faces, "adamant", 0.3 + r.uniform(0, 0.15))
+    return _finish("reeds", bm)
+
+
+def sunbloom(seed: int = 0):
+    r = common.rng(seed, "sunbloom")
+    bm = bmesh.new()
+    gf = _blob(bm, (0, 0, 0.1), 0.45, 0.35, r)
+    common.paint_faces(bm, gf, "adamant", 0.5)
+    for i in range(6):
+        ang = r.uniform(0, math.tau)
+        d = r.uniform(0.1, 0.4)
+        c = Vector((math.cos(ang) * d, math.sin(ang) * d, 0.3 + r.uniform(0, 0.1)))
+        bf = _blob(bm, c, 0.09, 0.8, r, jitter=0.15)
+        common.paint_faces(bm, bf, "gold", 0.7 + r.uniform(0, 0.15))
+    return _finish("sunbloom_patch", bm)
+
+
+# ---- town & scenery --------------------------------------------------------
+
+def bank_booth(seed: int = 0):
+    bm = bmesh.new()
+    counter = common.add_box(bm, (0, 0, 0.55), (2.4, 0.7, 1.1))
+    common.paint_faces(bm, counter, "wood", 0.5)
+    top = common.add_box(bm, (0, 0, 1.14), (2.6, 0.9, 0.08))
+    common.paint_faces(bm, top, "wood", 0.65)
+    for sx in (-1.15, 1.15):
+        post = common.add_box(bm, (sx, 0, 1.8), (0.12, 0.12, 1.4))
+        common.paint_faces(bm, post, "grip", 0.4)
+    roof = common.add_box(bm, (0, 0, 2.6), (2.9, 1.3, 0.12))
+    common.paint_faces(bm, roof, "cloth", 0.5)
+    crest = common.add_box(bm, (0, -0.4, 1.95), (0.5, 0.06, 0.5))
+    common.paint_faces(bm, crest, "gold", 0.7)
+    return _finish("bank_booth", bm)
+
+
+def hearth(seed: int = 0):
+    r = common.rng(seed, "hearth")
+    bm = bmesh.new()
+    for i in range(8):
+        ang = i / 8 * math.tau
+        bf = _blob(bm, (math.cos(ang) * 1.1, math.sin(ang) * 1.1, 0.2), 0.3, 0.7, r)
+        common.paint_faces(bm, bf, "stone", 0.45)
+    flame = _blob(bm, (0, 0, 0.5), 0.45, 1.5, r, jitter=0.35)
+    common.paint_faces(bm, flame, "gold", 0.9)
+    ember = _blob(bm, (0, 0, 0.25), 0.55, 0.5, r)
+    common.paint_faces(bm, ember, "copper", 0.8)
+    return _finish("hearth", bm)
+
+
+def ruin_pillar(seed: int = 0):
+    r = common.rng(seed, "pillar")
+    bm = bmesh.new()
+    h = r.uniform(1.6, 3.2)
+    prof = common.ngon_profile(0.35, n=8)
+    pf, _, top = common.add_prism(bm, prof, 0, h, scale_top=0.9)
+    common.paint_faces(bm, pf, "stone", 0.55)
+    base = common.add_box(bm, (0, 0, 0.15), (1.1, 1.1, 0.3))
+    common.paint_faces(bm, base, "stone", 0.4)
+    # broken top: jitter the top ring
+    for v in top:
+        v.co.z += r.uniform(-0.35, 0.05)
+    return _finish("ruin_pillar", bm)
+
+
+def barrow(seed: int = 0):
+    r = common.rng(seed, "barrow")
+    bm = bmesh.new()
+    mound = _blob(bm, (0, 0, 0.3), 1.6, 0.45, r, jitter=0.15)
+    common.paint_faces(bm, mound, "leather", 0.35)
+    door = common.add_box(bm, (0, -1.3, 0.5), (0.9, 0.2, 1.0))
+    common.paint_faces(bm, door, "stone", 0.3)
+    return _finish("barrow", bm)
+
+
+# ---- batch -----------------------------------------------------------------
+
+ALL = {
+    "tree_alderwood": lambda: tree("alderwood", 11),
+    "tree_emberbirch": lambda: tree("emberbirch", 12),
+    "tree_silverwillow": lambda: tree("silverwillow", 13),
+    "tree_duskyew": lambda: tree("duskyew", 14),
+    "tree_stump": lambda: stump(1),
+    "copper_rock": lambda: ore_rock("copper_rock", 21),
+    "iron_rock": lambda: ore_rock("iron_rock", 22),
+    "coal_rock": lambda: ore_rock("coal_rock", 23),
+    "mithril_rock": lambda: ore_rock("mithril_rock", 24),
+    "adamant_rock": lambda: ore_rock("adamant_rock", 25),
+    "rune_rock": lambda: ore_rock("rune_rock", 26),
+    "rock_rubble": lambda: rubble(2),
+    "boulder": lambda: boulder(3),
+    "reeds": lambda: reeds(4),
+    "sunbloom_patch": lambda: sunbloom(5),
+    "bank_booth": lambda: bank_booth(),
+    "hearth": lambda: hearth(6),
+    "ruin_pillar": lambda: ruin_pillar(7),
+    "barrow": lambda: barrow(8),
+}
+
+
+def build_all(export=True):
+    import export as exp
+
+    objs = []
+    for name, fn in ALL.items():
+        o = fn()
+        objs.append(o)
+        if export:
+            exp.export_glb(o, "nature", name)
+    return objs
