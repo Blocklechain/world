@@ -29,6 +29,7 @@ export default defineConfig({
     }),
   ],
   server: {
+    allowedHosts: [".trycloudflare.com"],
     proxy: {
       "/colyseus": {
         target: "http://localhost:2567",

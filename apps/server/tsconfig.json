@@ -4,6 +4,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "experimentalDecorators": true,
+    "useDefineForClassFields": false,
     "noEmit": true,
     "types": ["node"]
   },
