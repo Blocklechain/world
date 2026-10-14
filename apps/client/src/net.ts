@@ -18,12 +18,36 @@ export interface XpDrop {
   ts: number;
 }
 
+export interface QuestProgress {
+  n: number;
+  state: "active" | "done" | "claimed";
+}
+
+export interface NpcPayload {
+  id: string;
+  name: string;
+  role: string;
+  lines: string[];
+  banker: boolean;
+  quest: {
+    id: string;
+    name: string;
+    intro: string;
+    done: string;
+    objective: { kind: "gather" | "kill"; target: string; count: number };
+    reward: { skill: string; xp: number };
+    state: "none" | "active" | "done" | "claimed";
+    n: number;
+  } | null;
+}
+
 export interface GameState {
   address: string | null;
   skills: SkillXp | null;
   inv: (string | null)[];
   bankOpen: boolean;
   bank: Record<string, number>;
+  quests: Record<string, QuestProgress>;
 }
 
 type Listener = () => void;
@@ -45,6 +69,10 @@ export interface Net {
   interact(nodeId: string): void;
   attack(monsterId: string, style: string): void;
   onFx(cb: (e: FxEvent) => void): void;
+  npcTalk(npcId: string): void;
+  questAccept(questId: string): void;
+  questComplete(questId: string): void;
+  onNpc(cb: (npc: NpcPayload) => void): void;
   dropSlot(slot: number): void;
   bankOpen(): void;
   bankDeposit(slot: number, all?: boolean): void;
@@ -62,7 +90,7 @@ export async function connect(name: string, token: string | null): Promise<Net> 
   const client = new Client(`${proto}://${location.host}/colyseus`);
   const room = await client.joinOrCreate("zone", { zone: DEFAULT_ZONE, name, token });
 
-  const game: GameState = { address: null, skills: null, inv: [], bankOpen: false, bank: {} };
+  const game: GameState = { address: null, skills: null, inv: [], bankOpen: false, bank: {}, quests: {} };
   const chatCbs: ((l: ChatLine) => void)[] = [];
   const xpCbs: ((d: XpDrop) => void)[] = [];
   const msgCbs: ((t: string) => void)[] = [];
@@ -97,6 +125,12 @@ export async function connect(name: string, token: string | null): Promise<Net> 
   room.onMessage(EVT.msg, (m: { text: string }) => msgCbs.forEach((cb) => cb(m.text)));
   const fxCbs: ((e: FxEvent) => void)[] = [];
   room.onMessage("fx", (e: FxEvent) => fxCbs.forEach((cb) => cb(e)));
+  const npcCbs: ((n: NpcPayload) => void)[] = [];
+  room.onMessage("npc", (m: { npc: NpcPayload }) => npcCbs.forEach((cb) => cb(m.npc)));
+  room.onMessage("quests", (m: { quests: Record<string, QuestProgress> }) => {
+    game.quests = m.quests;
+    emitGame();
+  });
 
   // depleted-node set lives in shared room state
   const depleted = () =>
@@ -112,6 +146,10 @@ export async function connect(name: string, token: string | null): Promise<Net> 
     interact: (nodeId) => room.send(MSG.interact, { nodeId }),
     attack: (monsterId, style) => room.send("attack", { monsterId, style }),
     onFx: (cb) => fxCbs.push(cb),
+    npcTalk: (npcId) => room.send("npc:talk", { npcId }),
+    questAccept: (questId) => room.send("quest:accept", { questId }),
+    questComplete: (questId) => room.send("quest:complete", { questId }),
+    onNpc: (cb) => npcCbs.push(cb),
     dropSlot: (slot) => room.send(MSG.invDrop, { slot }),
     bankOpen: () => room.send(MSG.bankOpen),
     bankDeposit: (slot, all) => room.send(MSG.bankDeposit, { slot, all }),

@@ -13,6 +13,8 @@ export interface Profile {
   inv: (string | null)[];
   /** bank stacks: itemId -> count */
   bank: Record<string, number>;
+  /** questId -> progress */
+  quests: Record<string, { n: number; state: "active" | "done" | "claimed" }>;
   pos?: { x: number; z: number };
 }
 
@@ -35,6 +37,7 @@ export function loadProfile(address: string, name: string): Profile {
     p.skills = { ...freshSkills(), ...p.skills };
     p.inv = Array.from({ length: INVENTORY_SLOTS }, (_, i) => p!.inv?.[i] ?? null);
     p.bank ??= {};
+    p.quests ??= {};
   } catch {
     p = {
       address,
@@ -42,6 +45,7 @@ export function loadProfile(address: string, name: string): Profile {
       skills: freshSkills(),
       inv: Array(INVENTORY_SLOTS).fill(null),
       bank: {},
+      quests: {},
     };
   }
   cache.set(address, p);

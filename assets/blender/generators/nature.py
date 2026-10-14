@@ -226,6 +226,67 @@ def fishing_spot(seed: int = 0):
 
 # ---- town & scenery --------------------------------------------------------
 
+def _house_core(bm, w, d, h, wall_row, wall_t, roof_row, roof_t):
+    """Walls + gable roof + door + windows. Door faces -Y."""
+    walls = common.add_box(bm, (0, 0, h / 2), (w, d, h))
+    common.paint_faces(bm, walls, wall_row, wall_t)
+    # corner beams
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            bf = common.add_box(bm, (sx * (w / 2 - 0.08), sy * (d / 2 - 0.08), h / 2), (0.18, 0.18, h))
+            common.paint_faces(bm, bf, "wood", 0.35)
+    # gable roof: two sloped slabs meeting at a ridge
+    rise = h * 0.55
+    for sx in (-1, 1):
+        slab = common.add_box(bm, (sx * w * 0.26, 0, h + rise / 2), (w * 0.62, d + 0.5, 0.12))
+        import bmesh as _b
+        verts = set()
+        for f in slab:
+            for v in f.verts:
+                verts.add(v)
+        rot = Matrix.Rotation(sx * math.atan2(rise, w * 0.52), 4, "Y")
+        _b.ops.rotate(bm, verts=list(verts), cent=(sx * w * 0.26, 0, h + rise / 2), matrix=rot)
+        common.paint_faces(bm, slab, roof_row, roof_t)
+    gable = common.add_box(bm, (0, 0, h + rise * 0.26), (w * 0.86, d * 0.9, rise * 0.52))
+    common.paint_faces(bm, gable, wall_row, wall_t - 0.06)
+    # door
+    df = common.add_box(bm, (0, -d / 2 - 0.02, 0.95), (0.8, 0.1, 1.9))
+    common.paint_faces(bm, df, "grip", 0.35)
+    # windows
+    for sx in (-1, 1):
+        wf = common.add_box(bm, (sx * w * 0.28, -d / 2 - 0.02, 1.5), (0.5, 0.08, 0.5))
+        common.paint_faces(bm, wf, "gold", 0.85)
+
+
+def house(seed: int = 0):
+    bm = bmesh.new()
+    _house_core(bm, 4.6, 3.8, 2.6, "bone", 0.55, "cloth", 0.4)
+    return _finish("house", bm)
+
+
+def house_stone(seed: int = 0):
+    bm = bmesh.new()
+    _house_core(bm, 5.2, 4.2, 2.9, "stone", 0.5, "wood", 0.35)
+    return _finish("house_stone", bm)
+
+
+def smithy(seed: int = 0):
+    r = common.rng(seed, "smithy")
+    bm = bmesh.new()
+    _house_core(bm, 5.4, 4.4, 2.7, "stone", 0.42, "wood", 0.3)
+    # chimney with embers
+    cf = common.add_box(bm, (1.6, 1.2, 4.6), (0.7, 0.7, 2.2))
+    common.paint_faces(bm, cf, "stone", 0.35)
+    ef = common.add_box(bm, (1.6, 1.2, 5.75), (0.5, 0.5, 0.15))
+    common.paint_faces(bm, ef, "copper", 0.9)
+    # anvil out front
+    af = common.add_box(bm, (-1.4, -2.9, 0.55), (0.8, 0.4, 0.35))
+    common.paint_faces(bm, af, "iron", 0.4)
+    bf2 = common.add_box(bm, (-1.4, -2.9, 0.2), (0.5, 0.5, 0.4))
+    common.paint_faces(bm, bf2, "wood", 0.35)
+    return _finish("smithy", bm)
+
+
 def bank_booth(seed: int = 0):
     bm = bmesh.new()
     counter = common.add_box(bm, (0, 0, 0.55), (2.4, 0.7, 1.1))
@@ -302,6 +363,9 @@ ALL = {
     "grass_tuft": lambda: grass_tuft(9),
     "fishing_spot": lambda: fishing_spot(),
     "bank_booth": lambda: bank_booth(),
+    "house": lambda: house(),
+    "house_stone": lambda: house_stone(),
+    "smithy": lambda: smithy(),
     "hearth": lambda: hearth(6),
     "ruin_pillar": lambda: ruin_pillar(7),
     "barrow": lambda: barrow(8),

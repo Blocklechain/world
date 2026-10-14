@@ -6,10 +6,12 @@ import "@babylonjs/loaders/glTF/2.0";
 
 import {
   NODE_SPECIES,
+  TOWNS,
   WATER_LEVEL,
   SPAWN,
   chunkNodes,
   chunkScenery,
+  heightAt,
   type SceneryItem,
   type WorldNode,
 } from "@world/content";
@@ -21,6 +23,7 @@ const MODELS = [
   "copper_rock", "iron_rock", "coal_rock", "mithril_rock", "adamant_rock", "rune_rock",
   "rock_rubble", "boulder", "reeds", "sunbloom_patch",
   "bank_booth", "hearth", "ruin_pillar", "barrow", "grass_tuft", "fishing_spot",
+  "house", "house_stone", "smithy",
 ];
 
 const SPECIES_MODEL: Record<string, string> = {
@@ -146,6 +149,11 @@ export class ScatterManager {
     // town fixtures (static, part of the world)
     push("bank_booth", SPAWN.x + 10, 4.0, SPAWN.z - 6, Math.PI, 1);
     push("hearth", SPAWN.x, 4.0, SPAWN.z, 0, 1);
+    for (const t of TOWNS) {
+      for (const b of t.buildings) {
+        push(b.kind, b.x, heightAt(b.x, b.z) - 0.08, b.z, b.yaw, b.scale);
+      }
+    }
 
     for (const [model, base] of this.bases) {
       const arr = buffers.get(model);

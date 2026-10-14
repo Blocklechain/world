@@ -9,6 +9,8 @@ import {
   SPAWN,
   STYLE_RANGE,
   SWIM_SPEED_MULT,
+  NPCS,
+  QUESTS,
   allMonsterSpawns,
   allNodes,
   encodeLook,
@@ -174,6 +176,66 @@ export class ZoneRoom extends Room<ZoneState> {
       s.nextAttackAt = 0;
     });
 
+    this.onMessage("npc:talk", (client, msg: { npcId?: string }) => {
+      const p = this.state.players.get(client.sessionId);
+      const s = this.sessions.get(client.sessionId);
+      const npc = NPCS.find((n) => n.id === String(msg?.npcId ?? ""));
+      if (!p || !s || !npc) return;
+      if (Math.hypot(p.x - npc.x, p.z - npc.z) > 6) {
+        client.send("msg", { text: `Walk closer to ${npc.name}.` });
+        return;
+      }
+      if (npc.banker) {
+        s.bankOpen = true;
+        client.send("bank", { open: true, entries: s.profile.bank });
+      }
+      client.send("npc", { npc: this.npcPayload(npc.id, s) });
+    });
+
+    this.onMessage("quest:accept", (client, msg: { questId?: string }) => {
+      const s = this.sessions.get(client.sessionId);
+      const q = QUESTS[String(msg?.questId ?? "")];
+      if (!s || !q || s.profile.quests[q.id]) return;
+      s.profile.quests[q.id] = { n: 0, state: "active" };
+      touchProfile(s.profile.address);
+      client.send("quests", { quests: s.profile.quests });
+      client.send("npc", { npc: this.npcPayload(q.npc, s) });
+      client.send("msg", { text: `Quest started: ${q.name}` });
+    });
+
+    this.onMessage("quest:complete", (client, msg: { questId?: string }) => {
+      const p = this.state.players.get(client.sessionId);
+      const s = this.sessions.get(client.sessionId);
+      const q = QUESTS[String(msg?.questId ?? "")];
+      if (!p || !s || !q) return;
+      const st = s.profile.quests[q.id];
+      if (!st || st.state === "claimed") return;
+      if (q.objective.kind === "gather") {
+        const have = s.profile.inv.filter((i) => i === q.objective.target).length;
+        if (have < q.objective.count) {
+          client.send("msg", { text: `You still need ${q.objective.count - have} more.` });
+          return;
+        }
+        let left = q.objective.count;
+        for (let i = 0; i < s.profile.inv.length && left > 0; i++) {
+          if (s.profile.inv[i] === q.objective.target) {
+            s.profile.inv[i] = null;
+            left--;
+          }
+        }
+        client.send("inv", { inv: s.profile.inv });
+      } else if (st.n < q.objective.count) {
+        client.send("msg", { text: `${q.objective.count - st.n} more to slay.` });
+        return;
+      }
+      st.state = "claimed";
+      touchProfile(s.profile.address);
+      this.grantXp(client.sessionId, q.reward.skill, q.reward.xp);
+      client.send("quests", { quests: s.profile.quests });
+      client.send("npc", { npc: this.npcPayload(q.npc, s) });
+      this.broadcast(EVT.system, { text: `${p.name} completed "${q.name}"!` });
+    });
+
     this.onMessage("inv:drop", (client, msg: { slot?: number }) => {
       const s = this.sessions.get(client.sessionId);
       const slot = Number(msg?.slot);
@@ -279,6 +341,7 @@ export class ZoneRoom extends Room<ZoneState> {
     this.state.players.set(client.sessionId, p);
 
     client.send("profile", { address, skills: profile.skills, inv: profile.inv, bankPos: BANK_POS });
+    client.send("quests", { quests: profile.quests });
     this.broadcast(EVT.system, { text: `${p.name} has arrived.` }, { except: client });
   }
 
@@ -327,6 +390,31 @@ export class ZoneRoom extends Room<ZoneState> {
     s.targetMonster = null;
     s.gatherNode = nodeId;
     s.nextGatherAt = 0;
+  }
+
+  npcPayload(npcId: string, s: Session) {
+    const npc = NPCS.find((n) => n.id === npcId)!;
+    const q = npc.quest ? QUESTS[npc.quest] : undefined;
+    const st = q ? s.profile.quests[q.id] : undefined;
+    return {
+      id: npc.id,
+      name: npc.name,
+      role: npc.role,
+      lines: npc.lines,
+      banker: !!npc.banker,
+      quest: q
+        ? {
+            id: q.id,
+            name: q.name,
+            intro: q.intro,
+            done: q.done,
+            objective: q.objective,
+            reward: q.reward,
+            state: st?.state ?? "none",
+            n: st?.n ?? 0,
+          }
+        : null,
+    };
   }
 
   private stopGathering(sessionId: string, p: PlayerState) {
@@ -503,6 +591,15 @@ export class ZoneRoom extends Room<ZoneState> {
       if (p) p.action = "idle";
       this.grantXp(killerSid, styleSkill(s.style), sp.xp);
       this.grantXp(killerSid, "defence", Math.ceil(sp.xp * 0.3));
+      for (const [qid, st] of Object.entries(s.profile.quests)) {
+        const q = QUESTS[qid];
+        if (!q || st.state !== "active" || q.objective.kind !== "kill") continue;
+        if (q.objective.target !== m.species) continue;
+        st.n = Math.min(q.objective.count, st.n + 1);
+        if (st.n >= q.objective.count) st.state = "done";
+        client?.send("quests", { quests: s.profile.quests });
+        client?.send("msg", { text: `${q.name}: ${st.n}/${q.objective.count}` });
+      }
       for (const drop of sp.drops) {
         if (Math.random() < drop.chance) {
           const slot = freeSlot(s.profile);

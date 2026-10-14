@@ -2,7 +2,8 @@ import { heightAt, regionAt } from "@world/content";
 import { FxManager } from "./fx";
 import { MonsterRenderer } from "./monsters";
 import { connect, type AuthResult, type Net } from "./net";
-import { PlayerRenderer } from "./players";
+import { NpcRenderer } from "./npcs";
+import { CharacterLibrary, PlayerRenderer } from "./players";
 import { ScatterManager } from "./scatter";
 import { createScene } from "./scene";
 import { TerrainManager } from "./terrain";
@@ -61,9 +62,17 @@ async function start(auth: AuthResult | null) {
   void scatter.load();
   net.onDepletedChange(() => scatter.markDirty());
 
-  const renderer = new PlayerRenderer(world.scene, net.room, net.sessionId, (root) => {
-    for (const m of root.getChildMeshes()) world.shadows.addShadowCaster(m, false);
-  });
+  const lib = new CharacterLibrary(world.scene);
+  const renderer = new PlayerRenderer(
+    world.scene,
+    net.room,
+    net.sessionId,
+    (root) => {
+      for (const m of root.getChildMeshes()) world.shadows.addShadowCaster(m, false);
+    },
+    lib,
+  );
+  const npcs = new NpcRenderer(world.scene, lib);
   const monsters = new MonsterRenderer(world.scene, net.room);
   const fx = new FxManager(world.scene);
   const combat: CombatRef = { style: "melee" };
@@ -130,6 +139,23 @@ async function start(auth: AuthResult | null) {
     const pick = world.scene.pick(e.clientX, e.clientY, (m) => m.name.startsWith("terrain:"));
     if (!pick?.pickedPoint) return;
     const { x, z } = pick.pickedPoint;
+    const npcId = npcs.nearest(x, z);
+    if (npcId) {
+      const np = npcs.npcPos(npcId)!;
+      const self = renderer.getSelfPosition();
+      if (self && Math.hypot(self.x - np.x, self.z - np.z) > 5.5) {
+        const dx = self.x - np.x;
+        const dz = self.z - np.z;
+        const d = Math.hypot(dx, dz) || 1;
+        const tx = np.x + (dx / d) * 2.2;
+        const tz = np.z + (dz / d) * 2.2;
+        net.sendMove(tx, tz);
+        renderer.setLocalTarget(tx, tz);
+      }
+      net.npcTalk(npcId);
+      showRing(np.x, np.z, 0.9);
+      return;
+    }
     const monster = monsters.nearest(x, z);
     if (monster) {
       net.attack(monster.id, combat.style);
@@ -162,6 +188,7 @@ async function start(auth: AuthResult | null) {
     const self = renderer.getSelfPosition();
     if (!self) return;
     monsters.update(dt, self.x, self.z);
+    npcs.update(self.x, self.z);
     terrain.update(self.x, self.z);
     scatter.update(self.x, self.z);
     const ty = heightAt(self.x, self.z) + 1.1;

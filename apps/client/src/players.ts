@@ -25,7 +25,7 @@ interface PlayerLike {
 const HEADING_OFFSET = 0;
 
 /** Loads body/hair GLBs once and hands out instances. */
-class CharacterLibrary {
+export class CharacterLibrary {
   private bodies = new Map<string, Promise<AssetContainer>>();
   private hair: Promise<AssetContainer> | null = null;
 
@@ -52,7 +52,7 @@ class CharacterLibrary {
   }
 }
 
-class PlayerAvatar {
+export class PlayerAvatar {
   root: TransformNode;
   loaded = false;
   private clips = new Map<string, AnimationGroup>();
@@ -142,8 +142,9 @@ export class PlayerRenderer {
     private room: Room,
     private selfId: string,
     private onAvatar?: (root: TransformNode) => void,
+    lib?: CharacterLibrary,
   ) {
-    this.lib = new CharacterLibrary(scene);
+    this.lib = lib ?? new CharacterLibrary(scene);
   }
 
   setLocalTarget(x: number, z: number) {

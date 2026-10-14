@@ -15,6 +15,7 @@ import {
   xpForLevel,
   type Appearance,
 } from "@world/content";
+import { QUESTS, WORLD_H, WORLD_W, TOWNS } from "@world/content";
 import {
   apiAppearance,
   apiLogin,
@@ -22,6 +23,7 @@ import {
   type AuthResult,
   type ChatLine,
   type Net,
+  type NpcPayload,
   type XpDrop,
 } from "./net";
 
@@ -190,7 +192,7 @@ function AuthOverlay({ onDone }: { onDone: (auth: AuthResult | null) => void }) 
 
 // ---- HUD -------------------------------------------------------------------
 
-type Panel = "none" | "inv" | "skills";
+type Panel = "none" | "inv" | "skills" | "quests" | "map";
 
 export interface CombatRef {
   style: "melee" | "archery" | "magic";
@@ -244,12 +246,14 @@ function HudInner({
   const [draft, setDraft] = useState("");
   const [panel, setPanel] = useState<Panel>("none");
   const [book, setBook] = useState<(typeof SKILLS)[number] | null>(null);
+  const [npc, setNpc] = useState<NpcPayload | null>(null);
   const [drops, setDrops] = useState<XpDrop[]>([]);
   const [toast, setToast] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    net.onNpc((payload) => setNpc(payload));
     net.onChat((line) => setLines((prev) => [...prev.slice(-60), line]));
     net.onGameChange(() => bump((n) => n + 1));
     net.onXp((d) => {
@@ -318,10 +322,89 @@ function HudInner({
         >
           ⭐
         </button>
+        <button
+          class={panel === "quests" ? "on" : ""}
+          onClick={() => setPanel(panel === "quests" ? "none" : "quests")}
+        >
+          📜
+        </button>
+        <button class={panel === "map" ? "on" : ""} onClick={() => setPanel(panel === "map" ? "none" : "map")}>
+          🗺️
+        </button>
         <button class={chatOpen ? "on" : ""} onClick={() => setChatOpen(!chatOpen)}>
           💬
         </button>
       </div>
+
+      {panel === "quests" && (
+        <div class="panelbox">
+          <h3>Quest Log</h3>
+          {Object.keys(g.quests).length === 0 && <p class="hint">No quests yet. Talk to the townsfolk.</p>}
+          {Object.entries(g.quests).map(([qid, st]) => {
+            const q = QUESTS[qid];
+            if (!q) return null;
+            const prog =
+              q.objective.kind === "kill"
+                ? `${st.n}/${q.objective.count} slain`
+                : `bring ${q.objective.count} ${q.objective.target.replace(/_/g, " ")}`;
+            return (
+              <div key={qid} class={`questrow ${st.state}`}>
+                <b>{q.name}</b>
+                <span>{st.state === "claimed" ? "✓ complete" : prog}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {panel === "map" && (
+        <div class="mapbox" onClick={() => setPanel("none")}>
+          <div class="mapframe">
+            <img src="/assets/map.png" alt="Veyra" />
+            {TOWNS.map((t) => (
+              <span
+                key={t.id}
+                class="towndot"
+                style={{ left: `${(t.x / WORLD_W) * 100}%`, top: `${(1 - t.z / WORLD_H) * 100}%` }}
+              >
+                <i>{t.name}</i>
+              </span>
+            ))}
+            <MapMarker net={net} />
+          </div>
+        </div>
+      )}
+
+      {npc && (
+        <div class="dialogue">
+          <h4>
+            {npc.name} <em>{npc.role}</em>
+          </h4>
+          <p>{npc.lines[Math.floor(Math.random() * npc.lines.length)]}</p>
+          {npc.quest && npc.quest.state === "none" && (
+            <div class="qbox">
+              <b>{npc.quest.name}</b>
+              <p>{npc.quest.intro}</p>
+              <button onClick={() => net.questAccept(npc.quest!.id)}>Accept quest</button>
+            </div>
+          )}
+          {npc.quest && (npc.quest.state === "active" || npc.quest.state === "done") && (
+            <div class="qbox">
+              <b>{npc.quest.name}</b>
+              <p>
+                {npc.quest.objective.kind === "kill"
+                  ? `${npc.quest.n}/${npc.quest.objective.count} slain`
+                  : `Bring ${npc.quest.objective.count} ${npc.quest.objective.target.replace(/_/g, " ")}.`}
+              </p>
+              <button onClick={() => net.questComplete(npc.quest!.id)}>Turn in</button>
+            </div>
+          )}
+          {npc.quest && npc.quest.state === "claimed" && <p class="hint">{npc.quest.done}</p>}
+          <button class="close" onClick={() => setNpc(null)}>
+            Farewell
+          </button>
+        </div>
+      )}
 
       {panel === "inv" && (
         <div class="panelbox inv">
@@ -440,6 +523,26 @@ function HudInner({
         )}
       </div>
     </>
+  );
+}
+
+function MapMarker({ net }: { net: Net }) {
+  const [pos, setPos] = useState<{ x: number; z: number } | null>(null);
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const self = (net.room.state as { players?: Map<string, { x: number; z: number }> }).players?.get(
+        net.sessionId,
+      );
+      if (self) setPos({ x: self.x, z: self.z });
+    }, 500);
+    return () => clearInterval(iv);
+  }, [net]);
+  if (!pos) return null;
+  return (
+    <span
+      class="medot"
+      style={{ left: `${(pos.x / WORLD_W) * 100}%`, top: `${(1 - pos.z / WORLD_H) * 100}%` }}
+    />
   );
 }
 
