@@ -26,6 +26,12 @@ All live at https://world.blockle.org (deploy per phase):
 - **Graphics round 2**: FXAA + bloom pipeline, 2048 PCF shadows cast by trees/rocks/buildings, drifting baked clouds + sun disc, pollen particles, denser terrain (1.33m grid) with curvature AO in the grass channel, clearer shallows; trees/rocks/creatures re-meshed at higher subdivision.
 - **The Sunken Keep**: hand-carved stone dungeon at Veyra's Ruin — skeleton/acolyte garrison, pillar halls, glow crystals, and the **Barrow King** (lvl 40 boss, 320hp, runic/adamant bar drops, 5-min respawn).
 
+## 2026-10-14 evening — compass, joystick, height, detail, model overhaul v3
+- Compass dial (camera bearing) + virtual joystick (camera-relative steering); dragging the world orbits the camera; taps interact; pinch/wheel zoom.
+- Terrain amplitude +40% (walk limit 19m), map re-rendered.
+- Underbrush detail pass: bushes/ferns/mushrooms/mossy logs/pebbles scattered by biome.
+- Characters/creatures/hair v3: 10-ring smooth-shaded builds with muscle taper — sculpted rather than faceted. All six bodies + full creature cast re-exported.
+
 ### Known issues / next
 - Stray stretched-geometry artifact seen near Hearthmere (likely a degenerate thin-instance matrix) — investigate.
 - Caves/dungeons interiors (instanced rooms with loading), prop collision + physics feel, sailing + dynamic ships on the wave system, dedicated combat/fishing/swim-polish clips, equipment/smithing/cooking, asset remodel round 2 (houses brighter, creature polish), NPC idle anims. Old base_body.glb removable after clients cache-bust.
