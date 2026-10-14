@@ -4,6 +4,7 @@ import { NODE_SPECIES, REGION_SCATTER } from "./gathering.js";
 import { NODE_SPECIES as _SP } from "./gathering.js";
 import {
   SPAWN,
+  WATER_LEVEL,
   moveStateAt,
   TOWN_RADIUS,
   WORLD_H,
@@ -89,7 +90,7 @@ export function allNodes(): Map<string, WorldNode> {
 // ---- scenery (non-interactable props) --------------------------------------
 
 export interface SceneryItem {
-  kind: "ruin_pillar" | "barrow" | "boulder" | "grass_tuft" | "stalagmite" | "glow_crystal";
+  kind: "ruin_pillar" | "barrow" | "boulder" | "grass_tuft" | "stalagmite" | "glow_crystal" | "rowboat";
   x: number;
   z: number;
   y: number;
@@ -116,6 +117,24 @@ export function chunkScenery(cx: number, cz: number): SceneryItem[] {
   // decorative grass where grass dominates the ground
   const grassiness = region.ground[0];
   if (grassiness > 0.3) add("grass_tuft", grassiness * 22, 0.7, 1.4);
+  // beached rowboats wherever sand meets water
+  const bx = x0 + 32;
+  const bz = z0 + 32;
+  {
+    const r2 = rng((WORLD_SEED + 4242) ^ (cx * 52361) ^ (cz * 95531));
+    if (r2() < 0.5) {
+      for (let k = 0; k < 10; k++) {
+        const x = x0 + r2() * SCATTER_CHUNK;
+        const z = z0 + r2() * SCATTER_CHUNK;
+        const h = heightAt(x, z);
+        if (h > WATER_LEVEL + 0.05 && h < WATER_LEVEL + 0.45) {
+          out.push({ kind: "rowboat", x, z, y: h, scale: 1, yaw: r2() * 6.28 });
+          break;
+        }
+      }
+    }
+  }
+  void bx; void bz;
   if (region.id === "veyras_ruin") add("ruin_pillar", 2.2, 0.8, 1.5);
   if (region.id === "barrowfields") add("barrow", 1.2, 1.0, 1.8);
   if (region.id === "highcrag" || region.id === "gloamdeep") add("boulder", 1.5, 0.6, 1.6);

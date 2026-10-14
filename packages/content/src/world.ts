@@ -185,6 +185,26 @@ export function sandAt(x: number, z: number, h?: number): number {
   return Math.min(1, beach * coastal * 1.15);
 }
 
+/** Shared ocean wave height at time t (seconds) — rendering and boats agree. */
+export function waveHeight(x: number, z: number, t: number): number {
+  return (
+    0.16 * Math.sin(x / 14 + t * 1.2) +
+    0.11 * Math.sin(z / 9.5 + t * 1.8) +
+    0.06 * Math.sin((x + z) / 25 - t * 0.8)
+  );
+}
+
+export const BOAT_SPEED = 6.8;
+
+/** Where a boat may float: any water at all, up to the beach line. */
+export function boatStateAt(x: number, z: number): MoveState {
+  if (x < 2 || z < 2 || x > WORLD_W - 2 || z > WORLD_H - 2) return "blocked";
+  const h = heightAt(x, z);
+  if (h < WATER_LEVEL - 0.15) return "swim"; // afloat
+  if (h < WATER_LEVEL + 0.5) return "walk"; // beaching — disembark
+  return "blocked";
+}
+
 export type MoveState = "walk" | "swim" | "blocked";
 export const SWIM_MAX_DEPTH = 4.5;
 export const SWIM_SPEED_MULT = 0.45;

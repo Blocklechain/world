@@ -25,6 +25,8 @@ import {
   levelForXp,
   maxHpForDefence,
   moveStateAt,
+  boatStateAt,
+  BOAT_SPEED,
   playerDamage,
   resolveMove,
   slopeSpeedMult,
@@ -65,6 +67,7 @@ export class PlayerState extends Schema {
   @type("string") look = "";
   /** equipped weapon itemId ("" = none) */
   @type("string") weapon = "";
+  @type("boolean") boat = false;
   @type("int16") hp = 30;
   @type("int16") maxHp = 30;
 }
@@ -152,7 +155,8 @@ export class ZoneRoom extends Room<ZoneState> {
       const p = this.state.players.get(client.sessionId);
       const s = this.sessions.get(client.sessionId);
       if (!p || !s || typeof msg?.x !== "number" || typeof msg?.z !== "number") return;
-      if (!this.map.isWalkable(msg.x, msg.z)) return;
+      const boatOk = p.boat && boatStateAt(msg.x, msg.z) !== "blocked";
+      if (!boatOk && !this.map.isWalkable(msg.x, msg.z)) return;
       this.stopGathering(client.sessionId, p);
       s.targetMonster = null;
       p.tx = msg.x;
@@ -252,6 +256,38 @@ export class ZoneRoom extends Room<ZoneState> {
       client.send("quests", { quests: s.profile.quests });
       client.send("npc", { npc: this.npcPayload(q.npc, s) });
       this.broadcast(EVT.system, { text: `${p.name} completed "${q.name}"!` });
+    });
+
+    this.onMessage("boat:board", (client, msg: { x?: number; z?: number }) => {
+      const p = this.state.players.get(client.sessionId);
+      if (!p || p.boat || this.map.id !== "overworld") return;
+      const bx = Number(msg?.x);
+      const bz = Number(msg?.z);
+      if (!Number.isFinite(bx) || !Number.isFinite(bz)) return;
+      if (Math.hypot(p.x - bx, p.z - bz) > 6) return;
+      // a deterministic beached rowboat must exist there
+      const cx = Math.floor(bx / SCATTER_CHUNK);
+      const cz = Math.floor(bz / SCATTER_CHUNK);
+      let found = false;
+      for (let dx = -1; dx <= 1 && !found; dx++) {
+        for (let dz = -1; dz <= 1 && !found; dz++) {
+          for (const sItem of this.map.chunkScenery(cx + dx, cz + dz)) {
+            if (sItem.kind === "rowboat" && Math.hypot(sItem.x - bx, sItem.z - bz) < 2) {
+              found = true;
+              break;
+            }
+          }
+        }
+      }
+      if (!found) return;
+      p.boat = true;
+      p.x = bx;
+      p.z = bz;
+      p.tx = bx;
+      p.tz = bz;
+      p.moving = false;
+      this.stopGathering(client.sessionId, p);
+      client.send("msg", { text: "You push off from the shore." });
     });
 
     this.onMessage("craft", (client, msg: { recipeId?: string }) => {
@@ -557,8 +593,9 @@ export class ZoneRoom extends Room<ZoneState> {
     this.state.players.forEach((p, sessionId) => {
       const s = this.sessions.get(sessionId);
       if (!s) return;
-      const swimming = this.map.moveStateAt(p.x, p.z) === "swim";
-      const step = ((swimming ? RUN_SPEED * SWIM_SPEED_MULT : RUN_SPEED) * dtMs) / 1000;
+      const swimming = !p.boat && this.map.moveStateAt(p.x, p.z) === "swim";
+      const speed = p.boat ? BOAT_SPEED : swimming ? RUN_SPEED * SWIM_SPEED_MULT : RUN_SPEED;
+      const step = (speed * dtMs) / 1000;
 
       // combat steering: keep walking toward the (moving) target
       if (s.targetMonster) {
@@ -593,9 +630,13 @@ export class ZoneRoom extends Room<ZoneState> {
         } else {
           const ux = dx / dist;
           const uz = dz / dist;
-          const stepMod = step * (swimming ? 1 : slopeSpeedMult(p.x, p.z, ux, uz));
-          const slid = this.map.id === "overworld" ? resolveMove(p.x + ux * stepMod, p.z + uz * stepMod) : { x: p.x + ux * stepMod, z: p.z + uz * stepMod };
-          if (this.map.isWalkable(slid.x, slid.z)) {
+          const stepMod = step * (swimming || p.boat ? 1 : slopeSpeedMult(p.x, p.z, ux, uz));
+          const slid = this.map.id === "overworld" && !p.boat ? resolveMove(p.x + ux * stepMod, p.z + uz * stepMod) : { x: p.x + ux * stepMod, z: p.z + uz * stepMod };
+          const state = p.boat ? boatStateAt(slid.x, slid.z) : null;
+          if (p.boat ? state !== "blocked" : this.map.isWalkable(slid.x, slid.z)) {
+            if (p.boat && state === "walk") {
+              p.boat = false; // ran aground on a beach — step out
+            }
             // if sliding got us nowhere (wedged on a prop), stop
             if (Math.hypot(slid.x - p.x, slid.z - p.z) < stepMod * 0.15) {
               p.moving = false;

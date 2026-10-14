@@ -77,6 +77,7 @@ export interface Net {
   equip(slot: number): void;
   unequip(): void;
   eat(slot: number): void;
+  boardBoat(x: number, z: number): void;
   dropSlot(slot: number): void;
   bankOpen(): void;
   bankDeposit(slot: number, all?: boolean): void;
@@ -163,6 +164,7 @@ export async function connect(
     equip: (slot) => room.send("equip", { slot }),
     unequip: () => room.send("unequip"),
     eat: (slot) => room.send("eat", { slot }),
+    boardBoat: (x, z) => room.send("boat:board", { x, z }),
     dropSlot: (slot) => room.send(MSG.invDrop, { slot }),
     bankOpen: () => room.send(MSG.bankOpen),
     bankDeposit: (slot, all) => room.send(MSG.bankDeposit, { slot, all }),

@@ -8,7 +8,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/loaders/glTF/2.0";
 import type { Room } from "colyseus.js";
 
-import { ITEMS, WATER_LEVEL, activeMap, decodeLook, mapHeightAt, mapIsWalkable, resolveMove, slopeSpeedMult, type Appearance } from "@world/content";
+import { BOAT_SPEED, ITEMS, WATER_LEVEL, activeMap, boatStateAt, decodeLook, mapHeightAt, mapIsWalkable, resolveMove, slopeSpeedMult, waveHeight, type Appearance } from "@world/content";
 
 const WEAPON_MODELS: Record<string, string> = Object.fromEntries(
   Object.values(ITEMS)
@@ -26,6 +26,7 @@ interface PlayerLike {
   action: string;
   look: string;
   weapon: string;
+  boat: boolean;
 }
 
 /** Yaw offset between the GLB's authored forward and world heading 0. */
@@ -85,6 +86,8 @@ export class PlayerAvatar {
   private handNode: TransformNode | null = null;
   private weaponMesh: Mesh | null = null;
   private weaponId = "";
+  boatMesh: Mesh | null = null;
+  private boatLoading = false;
 
   constructor(
     private scene: Scene,
@@ -133,6 +136,29 @@ export class PlayerAvatar {
     this.loaded = true;
     this.play("idle");
     onMeshes?.(this.root);
+  }
+
+  setBoat(on: boolean) {
+    if (on === !!this.boatMesh?.isEnabled()) return;
+    if (!on) {
+      this.boatMesh?.setEnabled(false);
+      return;
+    }
+    if (this.boatMesh) {
+      this.boatMesh.setEnabled(true);
+      return;
+    }
+    if (this.boatLoading) return;
+    this.boatLoading = true;
+    void this.lib2.gear("rowboat").then((mesh) => {
+      if (!mesh || this.disposed) {
+        mesh?.dispose();
+        return;
+      }
+      mesh.parent = this.root;
+      mesh.position.set(0, -0.12, 0);
+      this.boatMesh = mesh;
+    });
   }
 
   setWeapon(itemId: string) {
@@ -220,11 +246,17 @@ export class PlayerRenderer {
       const pos = av.root.position;
       let isMoving: boolean;
       const groundY = mapHeightAt(pos.x, pos.z);
-      // swimmers float chest-deep instead of walking the seabed
-      pos.y = groundY < WATER_LEVEL - 0.25 ? Math.max(groundY, WATER_LEVEL - 1.15) : groundY;
+      av.setBoat(!!p.boat);
+      if (p.boat) {
+        // ride the waves
+        pos.y = WATER_LEVEL + waveHeight(pos.x, pos.z, performance.now() / 1000) - 0.05;
+      } else {
+        // swimmers float chest-deep instead of walking the seabed
+        pos.y = groundY < WATER_LEVEL - 0.25 ? Math.max(groundY, WATER_LEVEL - 1.15) : groundY;
+      }
 
       if (id === this.selfId && this.localTarget) {
-        const step = (RUN_SPEED * dtMs) / 1000;
+        const step = ((p.boat ? BOAT_SPEED : RUN_SPEED) * dtMs) / 1000;
         const dx = this.localTarget.x - pos.x;
         const dz = this.localTarget.z - pos.z;
         const dist = Math.hypot(dx, dz);
@@ -232,10 +264,10 @@ export class PlayerRenderer {
         if (isMoving) {
           const ux = dx / dist;
           const uz = dz / dist;
-          const s = Math.min(step * slopeSpeedMult(pos.x, pos.z, ux, uz), dist);
+          const s = Math.min(step * (p.boat ? 1 : slopeSpeedMult(pos.x, pos.z, ux, uz)), dist);
           const raw = { x: pos.x + ux * s, z: pos.z + uz * s };
-          const slid = activeMap().id === "overworld" ? resolveMove(raw.x, raw.z) : raw;
-          if (mapIsWalkable(slid.x, slid.z) && Math.hypot(slid.x - pos.x, slid.z - pos.z) > s * 0.15) {
+          const slid = activeMap().id === "overworld" && !p.boat ? resolveMove(raw.x, raw.z) : raw;
+          if ((p.boat ? boatStateAt(slid.x, slid.z) !== "blocked" : mapIsWalkable(slid.x, slid.z)) && Math.hypot(slid.x - pos.x, slid.z - pos.z) > s * 0.15) {
             pos.x = slid.x;
             pos.z = slid.z;
             av.root.rotation.y = Math.atan2(dx, dz) + HEADING_OFFSET;
@@ -260,7 +292,7 @@ export class PlayerRenderer {
       }
 
       av.setWeapon(p.weapon ?? "");
-      const action = p.action === "swim" ? "swim" : isMoving ? "run" : p.action || "idle";
+      const action = p.boat ? "idle" : p.action === "swim" ? "swim" : isMoving ? "run" : p.action || "idle";
       av.play(action, action === "run" ? 1.35 : 1);
     });
 

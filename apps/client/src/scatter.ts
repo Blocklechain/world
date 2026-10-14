@@ -25,7 +25,7 @@ const MODELS = [
   "copper_rock", "iron_rock", "coal_rock", "mithril_rock", "adamant_rock", "rune_rock",
   "rock_rubble", "boulder", "reeds", "sunbloom_patch",
   "bank_booth", "hearth", "ruin_pillar", "barrow", "grass_tuft", "fishing_spot",
-  "house", "house_stone", "smithy", "cave_entrance", "stalagmite", "glow_crystal",
+  "house", "house_stone", "smithy", "cave_entrance", "stalagmite", "glow_crystal", "rowboat",
 ];
 
 const SPECIES_MODEL: Record<string, string> = {

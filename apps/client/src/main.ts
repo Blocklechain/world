@@ -173,6 +173,34 @@ async function start(auth: AuthResult | null) {
       travel(portal.toMap);
       return;
     }
+    // beached rowboats: tap to sail
+    if (activeMap().id === "overworld") {
+      const scx = Math.floor(x / 64);
+      const scz = Math.floor(z / 64);
+      let boat: { x: number; z: number } | null = null;
+      for (let dx = -1; dx <= 1 && !boat; dx++) {
+        for (let dz = -1; dz <= 1 && !boat; dz++) {
+          for (const it of activeMap().chunkScenery(scx + dx, scz + dz)) {
+            if (it.kind === "rowboat" && Math.hypot(it.x - x, it.z - z) < 2.4) {
+              boat = it;
+              break;
+            }
+          }
+        }
+      }
+      if (boat) {
+        const self = renderer.getSelfPosition();
+        if (self && Math.hypot(self.x - boat.x, self.z - boat.z) > 5) {
+          net.sendMove(boat.x, boat.z);
+          renderer.setLocalTarget(boat.x, boat.z);
+        } else {
+          net.boardBoat(boat.x, boat.z);
+          renderer.setLocalTarget(boat.x, boat.z);
+        }
+        showRing(boat.x, boat.z, 1.1);
+        return;
+      }
+    }
     const npcId = npcs?.nearest(x, z) ?? null;
     if (npcId) {
       const np = npcs!.npcPos(npcId)!;

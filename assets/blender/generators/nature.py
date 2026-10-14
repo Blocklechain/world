@@ -276,6 +276,49 @@ def glow_crystal(seed: int = 0):
     return _finish("glow_crystal", bm)
 
 
+def rowboat(seed: int = 0):
+    """A weathered wooden rowboat, bow toward -Y, origin at the waterline."""
+    bm = bmesh.new()
+    # hull: lofted cross-sections bow -> stern
+    sections = [
+        (-1.5, 0.06, 0.26),   # bow tip
+        (-1.0, 0.34, 0.34),
+        (-0.2, 0.46, 0.38),
+        (0.6, 0.44, 0.36),
+        (1.2, 0.3, 0.3),      # stern
+    ]
+    rings = []
+    for y, hw, ht in sections:
+        ring = [
+            bm.verts.new((-hw, y, ht)),
+            bm.verts.new((-hw * 0.7, y, 0.02)),
+            bm.verts.new((0, y, -0.06)),
+            bm.verts.new((hw * 0.7, y, 0.02)),
+            bm.verts.new((hw, y, ht)),
+        ]
+        rings.append(ring)
+    faces = []
+    for a, b in zip(rings, rings[1:]):
+        for i in range(4):
+            faces.append(bm.faces.new((a[i], a[i + 1], b[i + 1], b[i])))
+    # bow + stern caps
+    faces.append(bm.faces.new(tuple(rings[0])))
+    faces.append(bm.faces.new(tuple(reversed(rings[-1]))))
+    # inner floor
+    fl = common.add_box(bm, (0, -0.1, 0.02), (0.5, 2.3, 0.05))
+    common.paint_faces(bm, faces, "wood", 0.42)
+    common.paint_faces(bm, fl, "wood", 0.3)
+    # bench seats
+    for y in (-0.55, 0.45):
+        bf = common.add_box(bm, (0, y, 0.18), (0.62, 0.22, 0.05))
+        common.paint_faces(bm, bf, "wood", 0.55)
+    # gunwale rails along each side
+    for sx in (-1, 1):
+        tr = common.add_box(bm, (sx * 0.42, -0.15, 0.37), (0.09, 2.5, 0.05))
+        common.paint_faces(bm, tr, "grip", 0.4)
+    return _finish("rowboat", bm)
+
+
 # ---- town & scenery --------------------------------------------------------
 
 def _house_core(bm, w, d, h, wall_row, wall_t, roof_row, roof_t):
@@ -415,6 +458,7 @@ ALL = {
     "grass_tuft": lambda: grass_tuft(9),
     "fishing_spot": lambda: fishing_spot(),
     "cave_entrance": lambda: cave_entrance(),
+    "rowboat": lambda: rowboat(),
     "stalagmite": lambda: stalagmite(17),
     "glow_crystal": lambda: glow_crystal(18),
     "bank_booth": lambda: bank_booth(),
