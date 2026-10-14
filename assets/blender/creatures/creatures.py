@@ -11,8 +11,23 @@ from mathutils import Vector
 
 try:
     import common
+    import sculpt as _sc
 except ImportError:
     from generators import common
+    import sculpt as _sc
+
+
+def _refine(obj, ops, polish=True):
+    """Sculpt pass over an assembled creature: [(brush, kwargs), ...]."""
+    S = _sc.Sculpt.from_object(obj, mirror_x=True)
+    for brush, kw in ops:
+        getattr(S, brush)(**kw)
+    if polish:
+        S.despike()
+        S.smooth(center=(0, 0, 0.8), radius=3.0, iterations=1, lam=0.15)
+    S.commit(shade_smooth=True)
+    S.free()
+    return obj
 
 
 def _blob(bm, center, radius, squash, rng, jitter=0.22, subdiv=1):
@@ -113,22 +128,40 @@ def _biped(name, rng, h, bulk, head_r, body_row, body_t, skin_row, skin_t, hunch
 def vermin(seed=31):
     r = common.rng(seed, "vermin")
     o = _quadruped("vermin", r, 0.8, 0.22, 0.12, 0.14, "leather", 0.42, snout=0.12, ears=0.06)
-    return o
+    return _refine(o, [
+        ("inflate", dict(center=(0.1, 0.22, 0.24), radius=0.18, amount=0.035)),  # haunches
+        ("inflate", dict(center=(0, 0.0, 0.12), radius=0.2, amount=0.02)),       # belly
+        ("pinch", dict(center=(0, -0.55, 0.3), radius=0.12, amount=0.2)),        # snout taper
+    ])
 
 
 def wolf(seed=32):
     r = common.rng(seed, "wolf")
-    return _quadruped("wolf", r, 1.2, 0.3, 0.42, 0.18, "stone", 0.45, snout=0.2, ears=0.08)
+    o = _quadruped("wolf", r, 1.2, 0.3, 0.42, 0.18, "stone", 0.45, snout=0.2, ears=0.08)
+    return _refine(o, [
+        ("inflate", dict(center=(0.14, 0.38, 0.62), radius=0.24, amount=0.05)),   # haunches
+        ("inflate", dict(center=(0.13, -0.35, 0.68), radius=0.22, amount=0.045)), # chest/shoulders
+        ("pinch", dict(center=(0, -0.85, 0.72), radius=0.14, amount=0.22)),       # snout
+        ("crease", dict(center=(0, 0.05, 0.86), radius=0.2, depth=0.015)),        # spine line
+    ])
 
 
 def goblin(seed=33):
     r = common.rng(seed, "goblin")
-    return _biped("goblin", r, 1.1, 0.9, 0.14, "leather", 0.35, "adamant", 0.5)
+    o = _biped("goblin", r, 1.1, 0.9, 0.14, "leather", 0.35, "adamant", 0.5)
+    return _refine(o, [
+        ("inflate", dict(center=(0, -0.05, 0.55), radius=0.2, amount=0.03)),  # pot belly
+        ("inflate", dict(center=(0.1, -0.02, 1.02), radius=0.12, amount=0.025)),  # brow
+    ])
 
 
 def goblin_brute(seed=34):
     r = common.rng(seed, "goblin_brute")
-    return _biped("goblin_brute", r, 1.5, 1.5, 0.16, "iron", 0.4, "adamant", 0.42, hunch=0.12, club=True)
+    o = _biped("goblin_brute", r, 1.5, 1.5, 0.16, "iron", 0.4, "adamant", 0.42, hunch=0.12, club=True)
+    return _refine(o, [
+        ("inflate", dict(center=(0.28, -0.12, 1.0), radius=0.22, amount=0.05)),   # shoulder mass
+        ("inflate", dict(center=(0, -0.05, 0.75), radius=0.26, amount=0.04)),     # gut
+    ])
 
 
 def bandit(seed=35):
@@ -188,7 +221,12 @@ def spider(seed=38):
 def troll(seed=39):
     r = common.rng(seed, "troll")
     o = _biped("troll", r, 2.5, 2.1, 0.2, "stone", 0.4, "adamant", 0.32, hunch=0.3, club=True)
-    return o
+    return _refine(o, [
+        ("inflate", dict(center=(0.4, -0.3, 1.7), radius=0.4, amount=0.09)),    # huge shoulders
+        ("inflate", dict(center=(0, 0.15, 1.5), radius=0.45, amount=0.07)),     # back hump
+        ("inflate", dict(center=(0.5, -0.45, 0.9), radius=0.28, amount=0.06)),  # forearms
+        ("inflate", dict(center=(0, -0.3, 1.1), radius=0.4, amount=0.05)),      # gut
+    ])
 
 
 def cave_bat(seed=40):
@@ -220,6 +258,10 @@ def cave_bat(seed=40):
 def barrow_king(seed=41):
     r = common.rng(seed, "barrow_king")
     o = _biped("barrow_king", r, 2.3, 1.3, 0.17, "bone", 0.62, "bone", 0.75, hunch=0.08, club=False)
+    o = _refine(o, [
+        ("inflate", dict(center=(0.3, -0.1, 1.6), radius=0.26, amount=0.05)),  # regal shoulders
+        ("crease", dict(center=(0, -0.22, 1.25), radius=0.3, depth=0.02)),     # gaunt ribs
+    ], polish=False)
     # crown + burning eyes + great blade, added onto the biped
     import bpy as _bpy
     bm = bmesh.new()

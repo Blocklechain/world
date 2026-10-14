@@ -15,8 +15,19 @@ from mathutils import Matrix, Vector
 
 try:
     import common
+    import sculpt as _sc
 except ImportError:
     from . import common
+    import sculpt as _sc
+
+
+def _sculpt(obj, ops):
+    S = _sc.Sculpt.from_object(obj, mirror_x=False)
+    for brush, kw in ops:
+        getattr(S, brush)(**kw)
+    S.commit(shade_smooth=True)
+    S.free()
+    return obj
 
 
 def _blob(bm, center, radius, squash, rng, jitter=0.25, subdiv=1):
@@ -103,7 +114,17 @@ def tree(species: str, seed: int = 0):
         bf = _blob(bm, c, radius, squash, r, jitter=0.2, subdiv=2)
         shade = canopy_t + (0.1 if big else r.uniform(-0.16, 0.08))
         common.paint_faces(bm, bf, canopy_row, shade)
-    return _finish(f"tree_{species}", bm)
+    o = _finish(f"tree_{species}", bm)
+    # sculpt the canopy into organic clumps
+    cz = height * 0.82
+    ops = []
+    rr = common.rng(seed + 7, "canopy", species)
+    for _ in range(5):
+        a = rr.uniform(0, math.tau)
+        d = rr.uniform(0.15, 0.4) * height
+        ops.append(("inflate", dict(center=(math.cos(a) * d, math.sin(a) * d, cz + rr.uniform(-0.3, 0.3) * height), radius=height * 0.2, amount=height * 0.03)))
+        ops.append(("crease", dict(center=(math.cos(a + 1) * d * 0.7, math.sin(a + 1) * d * 0.7, cz), radius=height * 0.12, depth=height * 0.02)))
+    return _sculpt(o, ops)
 
 
 def grass_tuft(seed: int = 0):
@@ -151,7 +172,7 @@ def ore_rock(species: str, seed: int = 0):
         d = r.uniform(0, 0.45)
         radius = r.uniform(0.45, 0.8) * (1.15 if i == 0 else 0.8)
         c = (math.cos(ang) * d, math.sin(ang) * d, radius * 0.45)
-        bf = _blob(bm, c, radius, 0.7, r, jitter=0.35, subdiv=2 if i == 0 else 1)
+        bf = _blob(bm, c, radius, 0.7, r, jitter=0.35, subdiv=2)
         common.paint_faces(bm, bf, "stone", r.uniform(0.35, 0.55))
     # ore chunks studding the rock
     for i in range(5):
@@ -159,7 +180,15 @@ def ore_rock(species: str, seed: int = 0):
         c = (math.cos(ang) * 0.55, math.sin(ang) * 0.55, r.uniform(0.25, 0.7))
         bf = _blob(bm, c, r.uniform(0.1, 0.17), 1.0, r, jitter=0.2)
         common.paint_faces(bm, bf, ore_row, ore_t + r.uniform(-0.1, 0.1))
-    return _finish(species, bm)
+    o = _finish(species, bm)
+    # chip flat facets into the stone for a carved look
+    rr = common.rng(seed + 3, "facets", species)
+    ops = []
+    for _ in range(5):
+        a, b = rr.uniform(0, math.tau), rr.uniform(0.2, 1.2)
+        c = (math.cos(a) * 0.55, math.sin(a) * 0.55, b * 0.55)
+        ops.append(("flatten", dict(center=c, radius=rr.uniform(0.25, 0.4), amount=0.6)))
+    return _sculpt(o, ops)
 
 
 def rubble(seed: int = 0):
@@ -178,7 +207,10 @@ def boulder(seed: int = 0):
     bm = bmesh.new()
     bf = _blob(bm, (0, 0, 0.55), 0.9, 0.75, r, jitter=0.4, subdiv=2)
     common.paint_faces(bm, bf, "stone", 0.42)
-    return _finish("boulder", bm)
+    o = _finish("boulder", bm)
+    rr = common.rng(seed + 9, "boulder_facets")
+    ops = [("flatten", dict(center=(math.cos(a := rr.uniform(0, math.tau)) * 0.7, math.sin(a) * 0.7, rr.uniform(0.3, 0.9)), radius=0.5, amount=0.65)) for _ in range(6)]
+    return _sculpt(o, ops)
 
 
 def bush(seed: int = 0):
@@ -440,13 +472,21 @@ def _house_core(bm, w, d, h, wall_row, wall_t, roof_row, roof_t):
 def house(seed: int = 0):
     bm = bmesh.new()
     _house_core(bm, 4.6, 3.8, 2.6, "bone", 0.8, "cloth", 0.55)
-    return _finish("house", bm)
+    o = _finish("house", bm)
+    return _sculpt(o, [
+        ("grab", dict(center=(0, 0, 4.3), radius=1.6, offset=(0, 0, -0.18))),   # sagging ridge
+        ("inflate", dict(center=(2.3, 0, 1.3), radius=1.3, amount=-0.06)),       # bowed wall
+    ])
 
 
 def house_stone(seed: int = 0):
     bm = bmesh.new()
     _house_core(bm, 5.2, 4.2, 2.9, "stone", 0.72, "wood", 0.5)
-    return _finish("house_stone", bm)
+    o = _finish("house_stone", bm)
+    return _sculpt(o, [
+        ("grab", dict(center=(0, 0, 4.7), radius=1.8, offset=(0, 0, -0.15))),
+        ("flatten", dict(center=(2.6, 0, 1.4), radius=1.4, amount=0.3)),
+    ])
 
 
 def smithy(seed: int = 0):

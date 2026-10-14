@@ -16,9 +16,11 @@ import bpy
 try:
     import common
     import world_rig
+    import head_sculpt
 except ImportError:
     from generators import common
     from rig import world_rig
+    from rig import head_sculpt
 
 N = 10  # ring segments
 
@@ -92,7 +94,7 @@ class _Part:
         return self.obj
 
 
-def _build_head(rig, p, k, prefix):
+def _build_head(rig, p, k, prefix, race="human", sex="m"):
     part = _Part(f"{prefix}_head", rig)
     gi = part.g("head")
     gn = part.g("neck")
@@ -100,30 +102,33 @@ def _build_head(rig, p, k, prefix):
     skin = (p["skin_row"], p["skin_t"])
     z0 = k["head0"]
 
-    # neck + lofted skull
+    # neck stub
     part.paint(_tube(part.bm, part.deform, [
         (0, 0, k["neck0"], 0.055 * hs, 0.06 * hs, gn),
-        (0, 0, z0 + 0.02, 0.055 * hs, 0.06 * hs, gi),
+        (0, 0, z0 + 0.04, 0.05 * hs, 0.055 * hs, gi),
     ]), *skin)
+
     jaw_z = z0 + 0.02
-    part.paint(_tube(part.bm, part.deform, [
-        (0, 0.005, jaw_z, 0.075 * hs, 0.082 * hs, gi),
-        (0, 0.0, jaw_z + 0.045, 0.098 * hs, 0.105 * hs, gi),
-        (0, 0.0, jaw_z + 0.14, 0.108 * hs, 0.115 * hs, gi),
-        (0, 0.005, jaw_z + 0.21, 0.095 * hs, 0.10 * hs, gi),
-    ]), *skin)
+    skull_c = (0, 0.003, jaw_z + 0.115 * hs)
+    R = 0.118 * hs
+
+    # hand-sculpted skull, merged in and weighted to the head bone
+    head_bm = head_sculpt.build_head_mesh(race, sex, p["skin_row"], p["skin_t"], R)
+    tmp = bpy.data.meshes.new("_merge_head")
+    head_bm.to_mesh(tmp)
+    head_bm.free()
+    before = set(part.bm.verts)
+    part.bm.from_mesh(tmp)
+    bpy.data.meshes.remove(tmp)
+    for v in part.bm.verts:
+        if v not in before:
+            v.co.x += skull_c[0]
+            v.co.y += skull_c[1]
+            v.co.z += skull_c[2]
+            v[part.deform][gi] = 1.0
 
     face_y = -0.112 * hs
     eye_z = jaw_z + 0.125
-    # brow ridge
-    part.paint(_box(part.bm, part.deform, gi, (0, face_y, eye_z + 0.035), (0.135 * hs, 0.02, 0.022)), p["skin_row"], p["skin_t"] - 0.12)
-    # eyes: dark inset blocks
-    for sx in (-0.045, 0.045):
-        part.paint(_box(part.bm, part.deform, gi, (sx * hs, face_y - 0.004, eye_z), (0.034 * hs, 0.012, 0.02)), "grip", 0.12)
-    # nose
-    part.paint(_box(part.bm, part.deform, gi, (0, face_y - 0.016 * p["nose"], eye_z - 0.045), (0.034 * hs, 0.036 * p["nose"], 0.05)), *skin)
-    # mouth: thin dark strip
-    part.paint(_box(part.bm, part.deform, gi, (0, face_y - 0.002, jaw_z + 0.038), (0.05 * hs, 0.01, 0.012)), p["skin_row"], p["skin_t"] - 0.28)
     # ears
     ear_z = eye_z - 0.01
     if p["ear"] == "point":
@@ -246,7 +251,7 @@ def generate(params: dict, seed: int = 0):
     prefix = f"body_{race}_{sex}"
     rig = world_rig.build_rig(p, name=f"RIG_{race}_{sex}")
     parts = [
-        _build_head(rig, p, k, prefix),
+        _build_head(rig, p, k, prefix, race, sex),
         _build_torso(rig, p, k, sex, prefix),
         _build_arms(rig, p, k, prefix),
         _build_legs(rig, p, k, prefix),
