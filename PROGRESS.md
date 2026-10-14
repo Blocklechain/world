@@ -13,6 +13,13 @@ All live at https://world.blockle.org (deploy per phase):
 - **Auth hardening**: HMAC stateless session tokens (logins survive restarts — memory sessions silently downgraded reconnects to guests before).
 - Dev gotcha: killing ports with `lsof -ti:2567` also matched vite's proxy sockets and killed the dev server — use `-sTCP:LISTEN`.
 
+## 2026-10-14 continued — five more systems, each deployed live
+- **Dedicated clips**: attack_1h (wind-up slash), bow draw/loose, two-palm cast, rod-flick fishing hold — all six bodies re-exported; houses brightened.
+- **Collision & feel**: shared circle obstacles (trees/rocks/buildings) with slide-around, verified client/server agree to the cm; slope-aware speed.
+- **Smithing/cooking/equipment**: furnace+anvil at the smithy, cooking at the hearth, 15 recipes; swords render in the hand socket and add melee damage; food heals; station-proximity crafting UI.
+- **Gloamdeep Cavern**: GameMap abstraction (per-room maps server-side, active-map client-side); noise-carved dark cave with rich ores, spiders/brutes/bats, glow crystals; tap-to-travel portals with arrival at the far-side mouth.
+- **Sailing v1**: 62 beached rowboats on coastlines; board → sail any water at 6.8 m/s riding the shared wave function; run aground to dismount. Sailing-skill + big ships still queued.
+
 ### Known issues / next
 - Stray stretched-geometry artifact seen near Hearthmere (likely a degenerate thin-instance matrix) — investigate.
 - Caves/dungeons interiors (instanced rooms with loading), prop collision + physics feel, sailing + dynamic ships on the wave system, dedicated combat/fishing/swim-polish clips, equipment/smithing/cooking, asset remodel round 2 (houses brighter, creature polish), NPC idle anims. Old base_body.glb removable after clients cache-bust.
