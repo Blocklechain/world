@@ -14,6 +14,37 @@ except ImportError:
     from generators import common
 
 
+def export_character(rig: bpy.types.Object, parts, rel_dir: str, name: str) -> str:
+    """Export an armature + skinned part meshes + all NLA clips as one GLB."""
+    out_dir = os.path.join(common.repo_root(), "assets", "out", rel_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, name + ".glb")
+
+    if rig.animation_data:
+        for t in rig.animation_data.nla_tracks:
+            t.mute = False
+    bpy.ops.object.select_all(action="DESELECT")
+    rig.select_set(True)
+    for p in parts:
+        p.select_set(True)
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.export_scene.gltf(
+        filepath=path,
+        export_format="GLB",
+        use_selection=True,
+        export_yup=True,
+        export_apply=False,
+        export_animations=True,
+        export_animation_mode="ACTIONS",
+        export_skins=True,
+        export_def_bones=False,
+        export_morph=False,
+        export_cameras=False,
+        export_lights=False,
+    )
+    return path
+
+
 def export_glb(obj: bpy.types.Object, rel_dir: str, name: str | None = None) -> str:
     out_dir = os.path.join(common.repo_root(), "assets", "out", rel_dir)
     os.makedirs(out_dir, exist_ok=True)

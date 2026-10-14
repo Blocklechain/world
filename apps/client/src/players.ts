@@ -1,8 +1,9 @@
-import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
-import { Color3 } from "@babylonjs/core/Maths/math";
-import type { Mesh } from "@babylonjs/core/Meshes/mesh";
-import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import type { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
+import type { AssetContainer } from "@babylonjs/core/assetContainer";
+import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Scene } from "@babylonjs/core/scene";
+import "@babylonjs/loaders/glTF/2.0";
 import type { Room } from "colyseus.js";
 
 import { RUN_SPEED } from "@world/shared";
@@ -15,85 +16,124 @@ interface PlayerLike {
   name: string;
 }
 
+/** Yaw offset between the GLB's authored forward and world heading 0. */
+const HEADING_OFFSET = 0;
+
+class PlayerAvatar {
+  root: TransformNode;
+  private clips = new Map<string, AnimationGroup>();
+  private current: AnimationGroup | null = null;
+
+  constructor(scene: Scene, container: AssetContainer, id: string) {
+    this.root = new TransformNode(`player:${id}`, scene);
+    const entries = container.instantiateModelsToScene((n) => `${id}:${n}`, false);
+    for (const node of entries.rootNodes) node.parent = this.root;
+    for (const group of entries.animationGroups) {
+      const base = group.name.split(":").pop() ?? group.name;
+      this.clips.set(base, group);
+      group.stop();
+    }
+    this.play("idle");
+  }
+
+  play(name: string, speedRatio = 1) {
+    const clip = this.clips.get(name);
+    if (!clip || this.current === clip) {
+      if (clip) clip.speedRatio = speedRatio;
+      return;
+    }
+    this.current?.stop();
+    clip.start(true, speedRatio);
+    this.current = clip;
+  }
+
+  dispose() {
+    this.clips.forEach((c) => c.dispose());
+    this.root.dispose(false, true);
+  }
+}
+
 /**
- * Renders every player in room state. The local player is predicted (moves
- * immediately toward its tap target at server speed); remotes are smoothed
- * toward the latest server state. Capsules until the rigged body ships.
+ * Renders every player in room state using the rigged base body. The local
+ * player is predicted (moves toward its tap target at server speed); remotes
+ * are smoothed toward the latest server state.
  */
 export class PlayerRenderer {
-  private meshes = new Map<string, Mesh>();
+  private avatars = new Map<string, PlayerAvatar>();
   private localTarget: { x: number; z: number } | null = null;
+  private container: AssetContainer | null = null;
 
   constructor(
     private scene: Scene,
     private room: Room,
     private selfId: string,
-  ) {}
+  ) {
+    void SceneLoader.LoadAssetContainerAsync("/assets/characters/", "base_body.glb", scene).then(
+      (c) => (this.container = c),
+    );
+  }
 
   setLocalTarget(x: number, z: number) {
     this.localTarget = { x, z };
   }
 
   getSelfPosition(): { x: number; z: number } | null {
-    const m = this.meshes.get(this.selfId);
-    return m ? { x: m.position.x, z: m.position.z } : null;
+    const a = this.avatars.get(this.selfId);
+    return a ? { x: a.root.position.x, z: a.root.position.z } : null;
   }
 
   update(dtMs: number) {
+    if (!this.container) return;
     const players = (this.room.state as { players?: Map<string, PlayerLike> }).players;
     if (!players) return;
     const seen = new Set<string>();
 
     players.forEach((p: PlayerLike, id: string) => {
       seen.add(id);
-      let mesh = this.meshes.get(id);
-      if (!mesh) {
-        mesh = this.createCapsule(id === this.selfId);
-        mesh.position.set(p.x, 0.9, p.z);
-        this.meshes.set(id, mesh);
+      let av = this.avatars.get(id);
+      if (!av) {
+        av = new PlayerAvatar(this.scene, this.container!, id);
+        av.root.position.set(p.x, 0, p.z);
+        this.avatars.set(id, av);
       }
+      const pos = av.root.position;
+      let isMoving: boolean;
 
       if (id === this.selfId && this.localTarget) {
-        // client-side prediction: walk toward our own target at server speed
         const step = (RUN_SPEED * dtMs) / 1000;
-        const dx = this.localTarget.x - mesh.position.x;
-        const dz = this.localTarget.z - mesh.position.z;
+        const dx = this.localTarget.x - pos.x;
+        const dz = this.localTarget.z - pos.z;
         const dist = Math.hypot(dx, dz);
-        if (dist > 0.01) {
+        isMoving = dist > 0.05;
+        if (isMoving) {
           const s = Math.min(step, dist);
-          mesh.position.x += (dx / dist) * s;
-          mesh.position.z += (dz / dist) * s;
-          mesh.rotation.y = Math.atan2(dx, dz);
+          pos.x += (dx / dist) * s;
+          pos.z += (dz / dist) * s;
+          av.root.rotation.y = Math.atan2(dx, dz) + HEADING_OFFSET;
         }
-        // reconcile: if server disagrees by a lot, snap toward it
-        const err = Math.hypot(p.x - mesh.position.x, p.z - mesh.position.z);
+        const err = Math.hypot(p.x - pos.x, p.z - pos.z);
         if (err > 1.5) {
-          mesh.position.x += (p.x - mesh.position.x) * 0.2;
-          mesh.position.z += (p.z - mesh.position.z) * 0.2;
+          pos.x += (p.x - pos.x) * 0.2;
+          pos.z += (p.z - pos.z) * 0.2;
         }
       } else {
-        // remote: exponential smoothing toward server state (~100ms lag feel)
         const k = 1 - Math.exp(-dtMs / 80);
-        mesh.position.x += (p.x - mesh.position.x) * k;
-        mesh.position.z += (p.z - mesh.position.z) * k;
-        if (p.moving) mesh.rotation.y = p.heading;
+        const dx = p.x - pos.x;
+        const dz = p.z - pos.z;
+        pos.x += dx * k;
+        pos.z += dz * k;
+        isMoving = p.moving || Math.hypot(dx, dz) > 0.08;
+        if (p.moving) av.root.rotation.y = p.heading + HEADING_OFFSET;
       }
+
+      av.play(isMoving ? "run" : "idle", isMoving ? 1.35 : 1);
     });
 
-    for (const [id, mesh] of this.meshes) {
+    for (const [id, av] of this.avatars) {
       if (!seen.has(id)) {
-        mesh.dispose();
-        this.meshes.delete(id);
+        av.dispose();
+        this.avatars.delete(id);
       }
     }
-  }
-
-  private createCapsule(isSelf: boolean): Mesh {
-    const mesh = MeshBuilder.CreateCapsule("player", { height: 1.8, radius: 0.35, tessellation: 8 }, this.scene);
-    const mat = new StandardMaterial("pmat", this.scene);
-    mat.diffuseColor = isSelf ? new Color3(0.85, 0.72, 0.35) : new Color3(0.45, 0.55, 0.75);
-    mat.specularColor = Color3.Black();
-    mesh.material = mat;
-    return mesh;
   }
 }
