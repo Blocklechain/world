@@ -17,12 +17,14 @@ try:
     import common
     import world_rig
     import head_sculpt
+    import body_sculpt
 except ImportError:
     from generators import common
     from rig import world_rig
     from rig import head_sculpt
+    from rig import body_sculpt
 
-N = 10  # ring segments
+N = 14  # ring segments (higher density for sculpted anatomy)
 
 
 def _ring(bm, cx, cy, cz, rx, ry):
@@ -102,10 +104,11 @@ def _build_head(rig, p, k, prefix, race="human", sex="m"):
     skin = (p["skin_row"], p["skin_t"])
     z0 = k["head0"]
 
-    # neck stub
+    # neck: tapered column meeting the trapezius below and jaw above
     part.paint(_tube(part.bm, part.deform, [
-        (0, 0, k["neck0"], 0.055 * hs, 0.06 * hs, gn),
-        (0, 0, z0 + 0.04, 0.05 * hs, 0.055 * hs, gi),
+        (0, 0, k["neck0"] - 0.01, 0.072 * hs, 0.078 * hs, gn),
+        (0, 0, (k["neck0"] + z0) / 2, 0.060 * hs, 0.066 * hs, gn),
+        (0, 0, z0 + 0.04, 0.052 * hs, 0.057 * hs, gi),
     ]), *skin)
 
     jaw_z = z0 + 0.02
@@ -146,6 +149,7 @@ def _build_head(rig, p, k, prefix, race="human", sex="m"):
 
 
 def _build_torso(rig, p, k, sex, prefix):
+    _TORSO_CTX[0] = (p, k, sex)
     part = _Part(f"{prefix}_torso", rig)
     hips, spine, chest = part.g("hips"), part.g("spine"), part.g("chest")
     tw = p["torso_w"]
@@ -190,11 +194,24 @@ def _arm(part, p, k, side):
         (s * ax, 0, (k["elbow"] + k["wrist"]) / 2, 0.036 * w, 0.040 * w, fo),
         (s * ax, 0, k["wrist"] + 0.01, 0.030 * w, 0.034 * w, fo),
     ]), p["skin_row"], p["skin_t"])
-    part.paint(_tube(part.bm, part.deform, [
-        (s * ax, 0, k["wrist"] + 0.01, 0.034 * w, 0.042 * w, ha),
-        (s * ax, -0.005, (k["wrist"] + k["hand_end"]) / 2, 0.036 * w, 0.046 * w, ha),
-        (s * (ax - 0.002), -0.008, k["hand_end"] + 0.015, 0.026 * w, 0.034 * w, ha),
-    ]), p["skin_row"], p["skin_t"] - 0.07)
+    # palm block
+    hz0 = k["wrist"] + 0.01
+    hz1 = k["hand_end"] + 0.02
+    palm = _box(part.bm, part.deform, ha, (s * ax, -0.004, (hz0 + hz1) / 2), (0.075 * w, 0.034 * w, (hz0 - hz1) + 0.03))
+    part.paint(palm, p["skin_row"], p["skin_t"] - 0.07)
+    # four finger ridges hanging from the palm
+    for fi in range(4):
+        fx = s * (ax + (fi - 1.5) * 0.022 * w)
+        flen = 0.055 - abs(fi - 1.5) * 0.008
+        fg = _box(part.bm, part.deform, ha, (fx, -0.01, hz1 - flen / 2 - 0.01), (0.017 * w, 0.028 * w, flen))
+        part.paint(fg, p["skin_row"], p["skin_t"] - 0.1)
+        # knuckle crease
+    # thumb off the inner side
+    tb = _box(part.bm, part.deform, ha, (s * (ax - 0.045 * w), -0.01, hz0 - 0.03), (0.018 * w, 0.026 * w, 0.045))
+    part.paint(tb, p["skin_row"], p["skin_t"] - 0.1)
+
+
+_TORSO_CTX = [None]
 
 
 def _build_arms(rig, p, k, prefix):
@@ -250,11 +267,14 @@ def generate(params: dict, seed: int = 0):
     k = world_rig.key_heights(p)
     prefix = f"body_{race}_{sex}"
     rig = world_rig.build_rig(p, name=f"RIG_{race}_{sex}")
-    parts = [
-        _build_head(rig, p, k, prefix, race, sex),
-        _build_torso(rig, p, k, sex, prefix),
-        _build_arms(rig, p, k, prefix),
-        _build_legs(rig, p, k, prefix),
-        _build_feet(rig, p, k, prefix),
-    ]
+    head = _build_head(rig, p, k, prefix, race, sex)
+    torso = _build_torso(rig, p, k, sex, prefix)
+    arms = _build_arms(rig, p, k, prefix)
+    legs = _build_legs(rig, p, k, prefix)
+    feet = _build_feet(rig, p, k, prefix)
+    # anatomical sculpt refinement (moves existing verts; weights preserved)
+    body_sculpt.torso(torso, p, k, sex)
+    body_sculpt.arms(arms, p, k)
+    body_sculpt.legs(legs, p, k)
+    parts = [head, torso, arms, legs, feet]
     return rig, parts
