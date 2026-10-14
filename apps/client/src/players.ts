@@ -8,7 +8,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/loaders/glTF/2.0";
 import type { Room } from "colyseus.js";
 
-import { WATER_LEVEL, decodeLook, heightAt, isWalkable, type Appearance } from "@world/content";
+import { WATER_LEVEL, decodeLook, heightAt, isWalkable, resolveMove, slopeSpeedMult, type Appearance } from "@world/content";
 import { RUN_SPEED } from "@world/shared";
 
 interface PlayerLike {
@@ -181,12 +181,13 @@ export class PlayerRenderer {
         const dist = Math.hypot(dx, dz);
         isMoving = dist > 0.05;
         if (isMoving) {
-          const s = Math.min(step, dist);
-          const nx = pos.x + (dx / dist) * s;
-          const nz = pos.z + (dz / dist) * s;
-          if (isWalkable(nx, nz)) {
-            pos.x = nx;
-            pos.z = nz;
+          const ux = dx / dist;
+          const uz = dz / dist;
+          const s = Math.min(step * slopeSpeedMult(pos.x, pos.z, ux, uz), dist);
+          const slid = resolveMove(pos.x + ux * s, pos.z + uz * s);
+          if (isWalkable(slid.x, slid.z) && Math.hypot(slid.x - pos.x, slid.z - pos.z) > s * 0.15) {
+            pos.x = slid.x;
+            pos.z = slid.z;
             av.root.rotation.y = Math.atan2(dx, dz) + HEADING_OFFSET;
           } else {
             this.localTarget = null;

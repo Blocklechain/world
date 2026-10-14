@@ -21,6 +21,8 @@ import {
   maxHpForDefence,
   moveStateAt,
   playerDamage,
+  resolveMove,
+  slopeSpeedMult,
   randomLook,
   rollDamage,
   styleSkill,
@@ -336,6 +338,9 @@ export class ZoneRoom extends Room<ZoneState> {
       p.x = SPAWN.x;
       p.z = SPAWN.z;
     }
+    const safe = resolveMove(p.x, p.z);
+    p.x = safe.x;
+    p.z = safe.z;
     p.tx = p.x;
     p.tz = p.z;
     this.state.players.set(client.sessionId, p);
@@ -463,16 +468,24 @@ export class ZoneRoom extends Room<ZoneState> {
         const dz = p.tz - p.z;
         const dist = Math.hypot(dx, dz);
         if (dist <= step) {
-          p.x = p.tx;
-          p.z = p.tz;
+          const end = resolveMove(p.tx, p.tz);
+          p.x = end.x;
+          p.z = end.z;
           p.moving = false;
         } else {
-          const nx = p.x + (dx / dist) * step;
-          const nz = p.z + (dz / dist) * step;
-          if (isWalkable(nx, nz)) {
-            p.x = nx;
-            p.z = nz;
-            p.heading = Math.atan2(dx, dz);
+          const ux = dx / dist;
+          const uz = dz / dist;
+          const stepMod = step * (swimming ? 1 : slopeSpeedMult(p.x, p.z, ux, uz));
+          const slid = resolveMove(p.x + ux * stepMod, p.z + uz * stepMod);
+          if (isWalkable(slid.x, slid.z)) {
+            // if sliding got us nowhere (wedged on a prop), stop
+            if (Math.hypot(slid.x - p.x, slid.z - p.z) < stepMod * 0.15) {
+              p.moving = false;
+            } else {
+              p.x = slid.x;
+              p.z = slid.z;
+              p.heading = Math.atan2(dx, dz);
+            }
           } else {
             p.moving = false;
           }
