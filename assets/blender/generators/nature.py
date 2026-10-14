@@ -19,9 +19,9 @@ except ImportError:
     from . import common
 
 
-def _blob(bm, center, radius, squash, rng, jitter=0.25):
-    """Organic low-poly blob: icosphere subdiv 1, jittered verts."""
-    res = bmesh.ops.create_icosphere(bm, subdivisions=1, radius=radius)
+def _blob(bm, center, radius, squash, rng, jitter=0.25, subdiv=1):
+    """Organic low-poly blob: jittered icosphere."""
+    res = bmesh.ops.create_icosphere(bm, subdivisions=subdiv, radius=radius)
     verts = res["verts"]
     for v in verts:
         n = (v.co - Vector((0, 0, 0))).normalized()
@@ -78,18 +78,48 @@ def tree(species: str, seed: int = 0):
     trunk_row, canopy_row, canopy_t, height, droop = TREES[species]
     r = common.rng(seed, "tree", species)
     bm = bmesh.new()
-    tf, top = _trunk(bm, r, height * 0.55, 0.22, 0.12)
+    # trunk with a root flare, plus 2 branch stubs reaching into the canopy
+    tf, top = _trunk(bm, r, height * 0.52, 0.26, 0.11)
     common.paint_faces(bm, tf, trunk_row, 0.4)
-    blobs = 3 if not droop else 4
-    for i in range(blobs):
+    for i in range(2):
         ang = r.uniform(0, math.tau)
-        d = r.uniform(0.1, 0.65)
-        c = top + Vector((math.cos(ang) * d, math.sin(ang) * d, r.uniform(0.1, height * 0.28)))
-        radius = height * r.uniform(0.17, 0.26)
-        squash = 0.75 if not droop else 1.25
-        bf = _blob(bm, c, radius, squash, r)
-        common.paint_faces(bm, bf, canopy_row, canopy_t + r.uniform(-0.12, 0.12))
+        base = top + Vector((0, 0, -height * 0.12))
+        tip = base + Vector((math.cos(ang) * height * 0.22, math.sin(ang) * height * 0.22, height * 0.16))
+        mid = (base + tip) / 2
+        bf = _blob(bm, mid, height * 0.045, (tip - base).length / (height * 0.09), r, jitter=0.1)
+        common.paint_faces(bm, bf, trunk_row, 0.5)
+    # layered canopy: a big crown with smaller two-tone clusters around it
+    blobs = 4 if not droop else 5
+    for i in range(blobs):
+        big = i == 0
+        ang = r.uniform(0, math.tau)
+        d = 0 if big else r.uniform(0.3, 0.8) * height * 0.22
+        lift = height * (0.3 if big else r.uniform(0.12, 0.34))
+        if droop:
+            lift -= height * 0.1 * (0 if big else 1)
+        c = top + Vector((math.cos(ang) * d, math.sin(ang) * d, lift))
+        radius = height * (r.uniform(0.24, 0.3) if big else r.uniform(0.13, 0.19))
+        squash = 0.72 if not droop else 1.3
+        bf = _blob(bm, c, radius, squash, r, jitter=0.18, subdiv=2 if big else 1)
+        shade = canopy_t + (0.1 if big else r.uniform(-0.16, 0.08))
+        common.paint_faces(bm, bf, canopy_row, shade)
     return _finish(f"tree_{species}", bm)
+
+
+def grass_tuft(seed: int = 0):
+    r = common.rng(seed, "grass")
+    bm = bmesh.new()
+    for i in range(7):
+        ang = r.uniform(0, math.tau)
+        d = r.uniform(0, 0.3)
+        h = r.uniform(0.25, 0.5)
+        x, y = math.cos(ang) * d, math.sin(ang) * d
+        lean = r.uniform(-0.12, 0.12)
+        base = [bm.verts.new((x + 0.025 * math.cos(a), y + 0.025 * math.sin(a), 0)) for a in (0, 2.1, 4.2)]
+        tip = bm.verts.new((x + lean, y + lean, h))
+        faces = [bm.faces.new((base[k], base[(k + 1) % 3], tip)) for k in range(3)]
+        common.paint_faces(bm, faces, "adamant", 0.42 + r.uniform(0, 0.25))
+    return _finish("grass_tuft", bm)
 
 
 def stump(seed: int = 0):
@@ -257,6 +287,7 @@ ALL = {
     "boulder": lambda: boulder(3),
     "reeds": lambda: reeds(4),
     "sunbloom_patch": lambda: sunbloom(5),
+    "grass_tuft": lambda: grass_tuft(9),
     "bank_booth": lambda: bank_booth(),
     "hearth": lambda: hearth(6),
     "ruin_pillar": lambda: ruin_pillar(7),

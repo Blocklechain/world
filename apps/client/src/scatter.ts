@@ -19,7 +19,7 @@ const MODELS = [
   "tree_alderwood", "tree_emberbirch", "tree_silverwillow", "tree_duskyew", "tree_stump",
   "copper_rock", "iron_rock", "coal_rock", "mithril_rock", "adamant_rock", "rune_rock",
   "rock_rubble", "boulder", "reeds", "sunbloom_patch",
-  "bank_booth", "hearth", "ruin_pillar", "barrow",
+  "bank_booth", "hearth", "ruin_pillar", "barrow", "grass_tuft",
 ];
 
 const SPECIES_MODEL: Record<string, string> = {
@@ -136,7 +136,7 @@ export class ScatterManager {
       }
     }
     for (const items of this.liveScenery.values()) {
-      for (const s of items) push(s.kind === "ruin_pillar" ? "ruin_pillar" : s.kind, s.x, s.y, s.z, s.yaw, s.scale);
+      for (const s of items) push(s.kind, s.x, s.y, s.z, s.yaw, s.scale);
     }
     // town fixtures (static, part of the world)
     push("bank_booth", SPAWN.x + 10, 4.0, SPAWN.z - 6, Math.PI, 1);

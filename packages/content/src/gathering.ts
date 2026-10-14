@@ -43,14 +43,14 @@ export function gatherChance(level: number, req: number): number {
 
 /** Per-region scatter tables: speciesId -> nodes per 64m chunk (expected). */
 export const REGION_SCATTER: Record<string, Record<string, number>> = {
-  greywater: { alderwood: 2.5, reeds: 2.0 },
-  barrowfields: { alderwood: 1.2, copper_rock: 0.8, iron_rock: 0.5 },
-  mistmarsh: { reeds: 5.0, silverwillow: 1.0, alderwood: 0.8 },
-  thornfell: { alderwood: 6.0, emberbirch: 1.6, sunbloom_patch: 0.4 },
+  greywater: { alderwood: 3.5, reeds: 3.0 },
+  barrowfields: { alderwood: 2.0, copper_rock: 1.0, iron_rock: 0.7 },
+  mistmarsh: { reeds: 6.5, silverwillow: 1.8, alderwood: 1.2 },
+  thornfell: { alderwood: 10.0, emberbirch: 2.6, sunbloom_patch: 0.5 },
   hearthmere: { alderwood: 1.4, copper_rock: 1.2, sunbloom_patch: 0.3 },
   gloamdeep: { copper_rock: 2.4, iron_rock: 2.2, coal_rock: 1.4, alderwood: 0.7 },
-  emberwood: { emberbirch: 4.0, silverwillow: 1.8, duskyew: 0.5, sunbloom_patch: 0.3 },
-  sunfall: { sunbloom_patch: 3.5, alderwood: 2.0, emberbirch: 0.7 },
+  emberwood: { emberbirch: 7.0, silverwillow: 2.8, duskyew: 0.9, sunbloom_patch: 0.4 },
+  sunfall: { sunbloom_patch: 4.5, alderwood: 3.0, emberbirch: 1.2 },
   highcrag: { mithril_rock: 1.6, adamant_rock: 0.9, rune_rock: 0.35, coal_rock: 1.2, iron_rock: 1.0 },
   veyras_ruin: { duskyew: 1.0, rune_rock: 0.25, silverwillow: 0.8 },
   worldspine_w: {},

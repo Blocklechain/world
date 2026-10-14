@@ -108,8 +108,17 @@ def marsh():
     return _save("marsh", col)
 
 
+def sand():
+    base = _fbm(101)
+    ripples = np.abs(np.sin(_fbm(103, (8, 16, 32)) * 14.0)) ** 2
+    col = _mix((0.62, 0.55, 0.40), (0.78, 0.70, 0.52), base)
+    col = _mix(col, (0.55, 0.48, 0.35), ripples * 0.35)
+    col += (_value_noise(512, 107)[..., None] - 0.5) * 0.08
+    return _save("sand", col)
+
+
 def build_all():
-    return [grass(), dirt(), rock(), marsh()]
+    return [grass(), dirt(), rock(), marsh(), sand()]
 
 
 if __name__ == "__main__":

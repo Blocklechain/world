@@ -149,9 +149,29 @@ def build_mine(rig):
     return _swing(rig, "mine", 32, raise_amt=1.5, chop_depth=0.75, twist=0.05)
 
 
+def build_swim(rig):
+    """Upright treading-water paddle: alternating arm sweeps, legs kicking."""
+
+    def pose(rig, f, t):
+        s = math.sin(TAU * t)
+        c = math.cos(TAU * t)
+        _key(rig, f, "upper_arm.L", rot=(-0.9 - 0.5 * s, 0, 0.35))
+        _key(rig, f, "upper_arm.R", rot=(-0.9 + 0.5 * s, 0, -0.35))
+        _key(rig, f, "forearm.L", rot=(-0.5 - 0.3 * c, 0, 0))
+        _key(rig, f, "forearm.R", rot=(-0.5 + 0.3 * c, 0, 0))
+        _key(rig, f, "thigh.L", rot=(0.35 * s, 0, 0))
+        _key(rig, f, "thigh.R", rot=(-0.35 * s, 0, 0))
+        _key(rig, f, "shin.L", rot=(0.4 * max(0.0, -s) + 0.1, 0, 0))
+        _key(rig, f, "shin.R", rot=(0.4 * max(0.0, s) + 0.1, 0, 0))
+        _key(rig, f, "chest", rot=(0.22, 0, 0.05 * s))
+        _key(rig, f, "hips", loc=(0, 0, 0.04 * math.sin(2 * TAU * t)))
+
+    return _cycle(rig, "swim", 36, 3, pose)
+
+
 def build_all(rig):
     bpy.context.scene.render.fps = FPS
-    acts = [build_idle(rig), build_walk(rig), build_run(rig), build_chop(rig), build_mine(rig)]
+    acts = [build_idle(rig), build_walk(rig), build_run(rig), build_chop(rig), build_mine(rig), build_swim(rig)]
     ad = rig.animation_data
     ad.action = None
     for t in list(ad.nla_tracks):

@@ -122,22 +122,41 @@ function blendedRegion(x: number, z: number): { lift: number; amp: number; groun
   return { lift, amp, ground };
 }
 
+export const OCEAN_FLOOR = -6;
+
+/** 0 on the island interior, 1 in open ocean; noisy coastline. A p-6
+ * superellipse keeps the ocean as a ring so every region keeps its interior. */
+export function oceanMask(x: number, z: number): number {
+  const nx = (x - WORLD_W / 2) / (WORLD_W * 0.52);
+  const nz = (z - WORLD_H / 2) / (WORLD_H * 0.52);
+  const d =
+    Math.pow(nx ** 6 + nz ** 6, 1 / 6) + (fbm(x, z, 300, 3, WORLD_SEED + 31) - 0.5) * 0.17;
+  return smooth(Math.min(1, Math.max(0, (d - 0.8) / 0.2)));
+}
+
 export function heightAt(x: number, z: number): number {
   const { lift, amp } = blendedRegion(x, z);
   let h = 2.6 + lift + amp * (fbm(x, z, 150, 4, WORLD_SEED) - 0.5) * 14;
   h += amp * (fbm(x, z, 31, 2, WORLD_SEED + 7) - 0.5) * 2.2;
 
   // Greywater: carve the lake
-  const lx = x - 256;
-  const lz = z - 300;
+  const lx = x - 360;
+  const lz = z - 430;
   const ld = Math.hypot(lx, lz * 0.8);
-  if (ld < 190) h -= 6.5 * smooth(1 - ld / 190);
+  if (ld < 140) h -= 6.5 * smooth(1 - ld / 140);
 
   // Hearthmere: flatten the town square
   const td = Math.hypot(x - SPAWN.x, z - SPAWN.z);
   if (td < TOWN_RADIUS) {
     const t = smooth(1 - td / TOWN_RADIUS);
     h = h * (1 - t) + 4.0 * t;
+  }
+
+  // the island of Veyra: everything sinks to the ocean floor at the coast
+  const ocean = oceanMask(x, z);
+  if (ocean > 0) {
+    const floor = OCEAN_FLOOR + (fbm(x, z, 90, 2, WORLD_SEED + 53) - 0.5) * 2.5;
+    h = h * (1 - ocean) + floor * ocean;
   }
   return h;
 }
@@ -153,17 +172,38 @@ export function groundWeights(x: number, z: number, h?: number): [number, number
   r = r + (1 - r) * rocky;
   g *= 1 - rocky * 0.9;
   m *= 1 - rocky;
-  // beaches / waterline mud
-  if (hh < WATER_LEVEL + 0.9) {
-    d += 0.6;
-    g *= 0.3;
-  }
   const sum = g + d + r + m || 1;
   return [g / sum, d / sum, r / sum, m / sum];
 }
 
-export function isWalkable(x: number, z: number): boolean {
-  if (x < 2 || z < 2 || x > WORLD_W - 2 || z > WORLD_H - 2) return false;
+/** Beach/seabed sand coverage, 0..1 — rendered as its own splat layer. */
+export function sandAt(x: number, z: number, h?: number): number {
+  const hh = h ?? heightAt(x, z);
+  const beach = smooth(Math.min(1, Math.max(0, (WATER_LEVEL + 1.2 - hh) / 2.0)));
+  // sandier near the ocean than inland lakes/marsh pools
+  const coastal = 0.45 + 0.55 * oceanMask(x, z);
+  return Math.min(1, beach * coastal * 1.15);
+}
+
+export type MoveState = "walk" | "swim" | "blocked";
+export const SWIM_MAX_DEPTH = 4.5;
+export const SWIM_SPEED_MULT = 0.45;
+
+export function moveStateAt(x: number, z: number): MoveState {
+  if (x < 2 || z < 2 || x > WORLD_W - 2 || z > WORLD_H - 2) return "blocked";
   const h = heightAt(x, z);
-  return h > WATER_LEVEL + 0.25 && h < MAX_WALK_HEIGHT;
+  if (h > MAX_WALK_HEIGHT) return "blocked";
+  if (h > WATER_LEVEL - 0.25) return "walk";
+  if (h > WATER_LEVEL - SWIM_MAX_DEPTH) return "swim";
+  return "blocked"; // open ocean — too deep without a ship
+}
+
+/** Land or swimmable water. */
+export function isWalkable(x: number, z: number): boolean {
+  return moveStateAt(x, z) !== "blocked";
+}
+
+/** Dry land only (resource scatter, buildings). */
+export function isLand(x: number, z: number): boolean {
+  return moveStateAt(x, z) === "walk";
 }

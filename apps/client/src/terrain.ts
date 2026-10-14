@@ -9,7 +9,9 @@ import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import type { Scene } from "@babylonjs/core/scene";
 import { MixMaterial } from "@babylonjs/materials/mix";
 
-import { WATER_LEVEL, groundWeights, heightAt } from "@world/content";
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
+
+import { WATER_LEVEL, groundWeights, heightAt, sandAt } from "@world/content";
 
 export const CHUNK = 64;
 const VERTS = 33; // 2m grid
@@ -24,8 +26,11 @@ export class TerrainManager {
   private water: Mesh;
   radius = 3; // chunks kept loaded in each direction
 
+  private waterTime = 0;
+  private waterCenter = { x: NaN, z: NaN };
+
   constructor(private scene: Scene) {
-    for (const name of ["grass", "dirt", "rock", "marsh"]) {
+    for (const name of ["grass", "dirt", "rock", "marsh", "sand"]) {
       const t = new Texture(`/assets/terrain/${name}.png`, scene);
       t.wrapU = t.wrapV = Texture.WRAP_ADDRESSMODE;
       // MixMaterial derives diffuse UVs from the (chunk-local) mix UV scaled
@@ -34,13 +39,61 @@ export class TerrainManager {
       t.vScale = CHUNK / TILE;
       this.detail[name] = t;
     }
-    this.water = MeshBuilder.CreateGround("water", { width: CHUNK * 9, height: CHUNK * 9, subdivisions: 1 }, scene);
+
+    // the sea: a subdivided sheet that follows the player; CPU waves, vertex
+    // colors tint by depth (turquoise shallows -> deep navy)
+    this.water = MeshBuilder.CreateGround(
+      "water",
+      { width: CHUNK * 10, height: CHUNK * 10, subdivisions: 48, updatable: true },
+      scene,
+    );
     const wm = new StandardMaterial("water", scene);
-    wm.diffuseColor = new Color3(0.12, 0.25, 0.33);
-    wm.specularColor = new Color3(0.3, 0.35, 0.35);
-    wm.alpha = 0.82;
+    wm.diffuseColor = new Color3(1, 1, 1);
+    wm.specularColor = new Color3(0.45, 0.5, 0.5);
+    wm.specularPower = 96;
+    wm.alpha = 0.8;
     this.water.material = wm;
+    this.water.hasVertexAlpha = false;
     this.water.position.y = WATER_LEVEL;
+    this.water.isPickable = false;
+    scene.onBeforeRenderObservable.add(() => this.animateWater());
+  }
+
+  private animateWater() {
+    this.waterTime += this.scene.getEngine().getDeltaTime() / 1000;
+    const t = this.waterTime;
+    const pos = this.water.getVerticesData(VertexBuffer.PositionKind);
+    if (!pos) return;
+    const wx = this.water.position.x;
+    const wz = this.water.position.z;
+    for (let i = 0; i < pos.length; i += 3) {
+      const x = pos[i]! + wx;
+      const z = pos[i + 2]! + wz;
+      pos[i + 1] =
+        0.16 * Math.sin(x / 14 + t * 1.2) +
+        0.11 * Math.sin(z / 9.5 + t * 1.8) +
+        0.06 * Math.sin((x + z) / 25 - t * 0.8);
+    }
+    this.water.updateVerticesData(VertexBuffer.PositionKind, pos);
+  }
+
+  private retintWater() {
+    const pos = this.water.getVerticesData(VertexBuffer.PositionKind);
+    if (!pos) return;
+    const colors = new Float32Array((pos.length / 3) * 4);
+    const wx = this.water.position.x;
+    const wz = this.water.position.z;
+    const shallow = [0.35, 0.72, 0.72];
+    const deep = [0.07, 0.2, 0.34];
+    for (let i = 0, c = 0; i < pos.length; i += 3, c += 4) {
+      const depth = Math.min(1, Math.max(0, (WATER_LEVEL - heightAt(pos[i]! + wx, pos[i + 2]! + wz)) / 5));
+      const k = Math.sqrt(depth);
+      colors[c] = shallow[0]! + (deep[0]! - shallow[0]!) * k;
+      colors[c + 1] = shallow[1]! + (deep[1]! - shallow[1]!) * k;
+      colors[c + 2] = shallow[2]! + (deep[2]! - shallow[2]!) * k;
+      colors[c + 3] = 1;
+    }
+    this.water.setVerticesData(VertexBuffer.ColorKind, colors, true);
   }
 
   update(px: number, pz: number) {
@@ -63,8 +116,15 @@ export class TerrainManager {
         this.chunks.delete(key);
       }
     }
-    this.water.position.x = px;
-    this.water.position.z = pz;
+    // snap the water sheet to a coarse grid so depth tints stay aligned
+    const snapX = Math.round(px / CHUNK) * CHUNK;
+    const snapZ = Math.round(pz / CHUNK) * CHUNK;
+    if (snapX !== this.waterCenter.x || snapZ !== this.waterCenter.z) {
+      this.waterCenter = { x: snapX, z: snapZ };
+      this.water.position.x = snapX;
+      this.water.position.z = snapZ;
+      this.retintWater();
+    }
   }
 
   private buildChunk(cx: number, cz: number): Mesh {
@@ -121,12 +181,30 @@ export class TerrainManager {
     }
     const mixTex = RawTexture.CreateRGBATexture(mix, MIX_RES, MIX_RES, this.scene, false, false, Texture.BILINEAR_SAMPLINGMODE);
 
+    // second cascade: sand over everything by beach/seabed weight
+    const mix2 = new Uint8Array(MIX_RES * MIX_RES * 4);
+    for (let j = 0; j < MIX_RES; j++) {
+      for (let i = 0; i < MIX_RES; i++) {
+        const x = x0 + (i / (MIX_RES - 1)) * CHUNK;
+        const z = z0 + (j / (MIX_RES - 1)) * CHUNK;
+        const k = (j * MIX_RES + i) * 4;
+        mix2[k] = sandAt(x, z) * 255;
+        mix2[k + 3] = 255; // keep layer-8 (1-a) silent
+      }
+    }
+    const mixTex2 = RawTexture.CreateRGBATexture(mix2, MIX_RES, MIX_RES, this.scene, false, false, Texture.BILINEAR_SAMPLINGMODE);
+
     const mat = new MixMaterial(`terrainmat:${cx}:${cz}`, this.scene);
     mat.mixTexture1 = mixTex;
+    mat.mixTexture2 = mixTex2;
     mat.diffuseTexture1 = this.detail.grass!;
     mat.diffuseTexture2 = this.detail.dirt!;
     mat.diffuseTexture3 = this.detail.rock!;
     mat.diffuseTexture4 = this.detail.marsh!;
+    mat.diffuseTexture5 = this.detail.sand!;
+    mat.diffuseTexture6 = this.detail.sand!;
+    mat.diffuseTexture7 = this.detail.sand!;
+    mat.diffuseTexture8 = this.detail.sand!;
     mat.specularColor = Color3.Black();
     mesh.material = mat;
 

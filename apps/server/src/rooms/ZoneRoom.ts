@@ -8,6 +8,8 @@ import {
   allNodes,
   gatherChance,
   isWalkable,
+  moveStateAt,
+  SWIM_SPEED_MULT,
   levelForXp,
   type WorldNode,
 } from "@world/content";
@@ -256,8 +258,9 @@ export class ZoneRoom extends Room<ZoneState> {
       if (respawnAt <= now) this.state.depleted.delete(id);
     });
 
-    const step = (RUN_SPEED * dtMs) / 1000;
     this.state.players.forEach((p, sessionId) => {
+      const swimming = moveStateAt(p.x, p.z) === "swim";
+      const step = ((swimming ? RUN_SPEED * SWIM_SPEED_MULT : RUN_SPEED) * dtMs) / 1000;
       if (p.moving) {
         const dx = p.tx - p.x;
         const dz = p.tz - p.z;
@@ -280,6 +283,11 @@ export class ZoneRoom extends Room<ZoneState> {
       }
 
       const s = this.sessions.get(sessionId);
+      if (swimming) {
+        if (p.action !== "swim") p.action = "swim";
+      } else if (p.action === "swim") {
+        p.action = "idle";
+      }
       if (!s?.gatherNode) return;
       const node = this.nodes.get(s.gatherNode);
       const sp = node && NODE_SPECIES[node.species];

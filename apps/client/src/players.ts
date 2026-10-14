@@ -6,7 +6,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/loaders/glTF/2.0";
 import type { Room } from "colyseus.js";
 
-import { heightAt, isWalkable } from "@world/content";
+import { WATER_LEVEL, heightAt, isWalkable } from "@world/content";
 import { RUN_SPEED } from "@world/shared";
 
 interface PlayerLike {
@@ -39,7 +39,9 @@ class PlayerAvatar {
   }
 
   play(name: string, speedRatio = 1) {
-    const clip = this.clips.get(name) ?? this.clips.get(name === "chop" || name === "mine" ? "idle" : name);
+    const clip =
+      this.clips.get(name) ??
+      this.clips.get(name === "chop" || name === "mine" || name === "swim" ? "idle" : name);
     if (!clip || this.current === clip) {
       if (clip) clip.speedRatio = speedRatio;
       return;
@@ -102,7 +104,9 @@ export class PlayerRenderer {
       }
       const pos = av.root.position;
       let isMoving: boolean;
-      pos.y = heightAt(pos.x, pos.z);
+      const groundY = heightAt(pos.x, pos.z);
+      // swimmers float chest-deep instead of walking the seabed
+      pos.y = groundY < WATER_LEVEL - 0.25 ? Math.max(groundY, WATER_LEVEL - 1.15) : groundY;
 
       if (id === this.selfId && this.localTarget) {
         const step = (RUN_SPEED * dtMs) / 1000;
@@ -139,7 +143,14 @@ export class PlayerRenderer {
         if (p.moving) av.root.rotation.y = p.heading + HEADING_OFFSET;
       }
 
-      const action = isMoving ? "run" : p.action === "chop" || p.action === "mine" ? p.action : "idle";
+      const action =
+        p.action === "swim"
+          ? "swim"
+          : isMoving
+            ? "run"
+            : p.action === "chop" || p.action === "mine"
+              ? p.action
+              : "idle";
       av.play(action, action === "run" ? 1.35 : 1);
     });
 

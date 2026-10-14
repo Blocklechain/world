@@ -8,7 +8,7 @@ import {
   WORLD_SEED,
   WORLD_W,
   heightAt,
-  isWalkable,
+  isLand,
   regionAt,
 } from "./world.js";
 
@@ -53,7 +53,7 @@ export function chunkNodes(cx: number, cz: number): WorldNode[] {
       const x = x0 + r() * SCATTER_CHUNK;
       const z = z0 + r() * SCATTER_CHUNK;
       i++;
-      if (!isWalkable(x, z)) continue;
+      if (!isLand(x, z)) continue;
       const d = Math.hypot(x - SPAWN.x, z - SPAWN.z);
       if (d < TOWN_RADIUS * 0.55) continue; // keep the town square clear
       const sp = NODE_SPECIES[species];
@@ -86,7 +86,7 @@ export function allNodes(): Map<string, WorldNode> {
 // ---- scenery (non-interactable props) --------------------------------------
 
 export interface SceneryItem {
-  kind: "ruin_pillar" | "barrow" | "boulder";
+  kind: "ruin_pillar" | "barrow" | "boulder" | "grass_tuft";
   x: number;
   z: number;
   y: number;
@@ -105,11 +105,14 @@ export function chunkScenery(cx: number, cz: number): SceneryItem[] {
     for (let k = 0; k < n; k++) {
       const x = x0 + r() * SCATTER_CHUNK;
       const z = z0 + r() * SCATTER_CHUNK;
-      if (!isWalkable(x, z)) continue;
+      if (!isLand(x, z)) continue;
       if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < TOWN_RADIUS) continue;
       out.push({ kind, x, z, y: heightAt(x, z), scale: smin + r() * (smax - smin), yaw: r() * Math.PI * 2 });
     }
   };
+  // decorative grass where grass dominates the ground
+  const grassiness = region.ground[0];
+  if (grassiness > 0.3) add("grass_tuft", grassiness * 22, 0.7, 1.4);
   if (region.id === "veyras_ruin") add("ruin_pillar", 2.2, 0.8, 1.5);
   if (region.id === "barrowfields") add("barrow", 1.2, 1.0, 1.8);
   if (region.id === "highcrag" || region.id === "gloamdeep") add("boulder", 1.5, 0.6, 1.6);
