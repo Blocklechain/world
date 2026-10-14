@@ -1,8 +1,118 @@
 import { render } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 
-import { ITEMS, SKILLS, levelForXp, xpForLevel } from "@world/content";
-import { apiLogin, apiRegister, type AuthResult, type ChatLine, type Net, type XpDrop } from "./net";
+import {
+  BEARDS,
+  DEFAULT_APPEARANCE,
+  HAIR_COLORS,
+  HAIR_STYLES,
+  ITEMS,
+  RACES,
+  SEXES,
+  SKILLS,
+  levelForXp,
+  xpForLevel,
+  type Appearance,
+} from "@world/content";
+import {
+  apiAppearance,
+  apiLogin,
+  apiRegister,
+  type AuthResult,
+  type ChatLine,
+  type Net,
+  type XpDrop,
+} from "./net";
+
+// ---- character creation ----------------------------------------------------
+
+const RACE_BLURB: Record<string, string> = {
+  human: "Versatile folk of the heartlands.",
+  elf: "Tall and keen-eyed, old as the woods.",
+  dwarf: "Stout delvers of the Worldspine.",
+};
+
+function Chips<T extends string>({
+  label,
+  options,
+  value,
+  onPick,
+  disabled,
+}: {
+  label: string;
+  options: readonly T[];
+  value: T;
+  onPick: (v: T) => void;
+  disabled?: boolean;
+}) {
+  if (disabled) return null;
+  return (
+    <div class="chips">
+      <span class="lbl">{label}</span>
+      <div class="row">
+        {options.map((o) => (
+          <button key={o} class={o === value ? "on" : ""} onClick={() => onPick(o)}>
+            {o === "m" ? "male" : o === "f" ? "female" : o}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CreateCharacter({ auth, onDone }: { auth: AuthResult; onDone: () => void }) {
+  const [a, setA] = useState<Appearance>({ ...DEFAULT_APPEARANCE });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const set = <K extends keyof Appearance>(k: K, v: Appearance[K]) => setA((p) => ({ ...p, [k]: v }));
+
+  const submit = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await apiAppearance(auth.token, a);
+      onDone();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div class="auth">
+      <div class="panel create">
+        <h1>Your Hero</h1>
+        <p class="sub">{RACE_BLURB[a.race]}</p>
+        <Chips label="Race" options={RACES} value={a.race} onPick={(v) => set("race", v)} />
+        <Chips label="Body" options={SEXES} value={a.sex} onPick={(v) => set("sex", v)} />
+        <Chips label="Hair" options={HAIR_STYLES} value={a.hair} onPick={(v) => set("hair", v)} />
+        <Chips
+          label="Hair color"
+          options={HAIR_COLORS}
+          value={a.hairColor}
+          onPick={(v) => set("hairColor", v)}
+          disabled={a.hair === "bald" && a.beard === "none"}
+        />
+        <Chips
+          label="Beard"
+          options={BEARDS}
+          value={a.beard}
+          onPick={(v) => set("beard", v)}
+          disabled={a.sex === "f"}
+        />
+        {error && <div class="err">{error}</div>}
+        <button class="go" disabled={busy} onClick={submit}>
+          {busy ? "…" : `Enter Veyra as ${auth.name}`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function mountCreate(el: HTMLElement, auth: AuthResult, onDone: () => void) {
+  render(<CreateCharacter auth={auth} onDone={onDone} />, el);
+}
 
 // ---- auth overlay ----------------------------------------------------------
 

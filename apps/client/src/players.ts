@@ -1,12 +1,14 @@
 import type { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import type { AssetContainer } from "@babylonjs/core/assetContainer";
+import type { Bone } from "@babylonjs/core/Bones/bone";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/loaders/glTF/2.0";
 import type { Room } from "colyseus.js";
 
-import { WATER_LEVEL, heightAt, isWalkable } from "@world/content";
+import { WATER_LEVEL, decodeLook, heightAt, isWalkable, type Appearance } from "@world/content";
 import { RUN_SPEED } from "@world/shared";
 
 interface PlayerLike {
@@ -16,18 +18,61 @@ interface PlayerLike {
   moving: boolean;
   name: string;
   action: string;
+  look: string;
 }
 
 /** Yaw offset between the GLB's authored forward and world heading 0. */
 const HEADING_OFFSET = 0;
 
+/** Loads body/hair GLBs once and hands out instances. */
+class CharacterLibrary {
+  private bodies = new Map<string, Promise<AssetContainer>>();
+  private hair: Promise<AssetContainer> | null = null;
+
+  constructor(private scene: Scene) {}
+
+  body(race: string, sex: string): Promise<AssetContainer> {
+    const key = `${race}_${sex}`;
+    let p = this.bodies.get(key);
+    if (!p) {
+      p = SceneLoader.LoadAssetContainerAsync("/assets/characters/", `body_${key}.glb`, this.scene);
+      this.bodies.set(key, p);
+    }
+    return p;
+  }
+
+  async attachment(name: string): Promise<Mesh | null> {
+    this.hair ??= SceneLoader.LoadAssetContainerAsync("/assets/characters/", "hair.glb", this.scene);
+    const c = await this.hair;
+    const src = c.meshes.find((m) => m.name === name && m.getTotalVertices() > 0) as Mesh | undefined;
+    if (!src) return null;
+    const clone = src.clone(`${name}:inst`, null)!;
+    clone.setEnabled(true);
+    return clone;
+  }
+}
+
 class PlayerAvatar {
   root: TransformNode;
+  loaded = false;
   private clips = new Map<string, AnimationGroup>();
   private current: AnimationGroup | null = null;
+  private disposed = false;
 
-  constructor(scene: Scene, container: AssetContainer, id: string) {
+  constructor(
+    private scene: Scene,
+    lib: CharacterLibrary,
+    look: Appearance,
+    id: string,
+    onMeshes?: (root: TransformNode) => void,
+  ) {
     this.root = new TransformNode(`player:${id}`, scene);
+    void this.init(lib, look, id, onMeshes);
+  }
+
+  private async init(lib: CharacterLibrary, look: Appearance, id: string, onMeshes?: (root: TransformNode) => void) {
+    const container = await lib.body(look.race, look.sex);
+    if (this.disposed) return;
     const entries = container.instantiateModelsToScene((n) => `${id}:${n}`, false);
     for (const node of entries.rootNodes) node.parent = this.root;
     for (const group of entries.animationGroups) {
@@ -35,7 +80,30 @@ class PlayerAvatar {
       this.clips.set(base, group);
       group.stop();
     }
+
+    // hair/beard ride the head bone's linked transform node
+    const skeleton = entries.skeletons[0];
+    const headBone = skeleton?.bones.find((b: Bone) => b.name === "head");
+    const headNode = headBone?.getTransformNode();
+    if (headNode) {
+      const scale = look.race === "dwarf" ? 1.12 : look.race === "elf" ? 0.94 : 1;
+      const mount = async (name: string, yOff: number) => {
+        const mesh = await lib.attachment(name);
+        if (!mesh || this.disposed) {
+          mesh?.dispose();
+          return;
+        }
+        mesh.parent = headNode;
+        mesh.position.set(0, yOff, 0);
+        mesh.scaling.setAll(scale);
+      };
+      if (look.hair !== "bald") await mount(`hair_${look.hair}_${look.hairColor}`, 0.14 * scale);
+      if (look.beard !== "none") await mount(`beard_${look.beard}_${look.hairColor}`, 0.05 * scale);
+    }
+
+    this.loaded = true;
     this.play("idle");
+    onMeshes?.(this.root);
   }
 
   play(name: string, speedRatio = 1) {
@@ -52,20 +120,20 @@ class PlayerAvatar {
   }
 
   dispose() {
+    this.disposed = true;
     this.clips.forEach((c) => c.dispose());
     this.root.dispose(false, true);
   }
 }
 
 /**
- * Renders every player in room state using the rigged base body. The local
- * player is predicted (moves toward its tap target at server speed); remotes
- * are smoothed toward the latest server state.
+ * Renders every player in room state with their chosen race/sex/hair. The
+ * local player is predicted; remotes are smoothed toward server state.
  */
 export class PlayerRenderer {
   private avatars = new Map<string, PlayerAvatar>();
   private localTarget: { x: number; z: number } | null = null;
-  private container: AssetContainer | null = null;
+  private lib: CharacterLibrary;
 
   constructor(
     private scene: Scene,
@@ -73,9 +141,7 @@ export class PlayerRenderer {
     private selfId: string,
     private onAvatar?: (root: TransformNode) => void,
   ) {
-    void SceneLoader.LoadAssetContainerAsync("/assets/characters/", "base_body.glb", scene).then(
-      (c) => (this.container = c),
-    );
+    this.lib = new CharacterLibrary(scene);
   }
 
   setLocalTarget(x: number, z: number) {
@@ -88,7 +154,6 @@ export class PlayerRenderer {
   }
 
   update(dtMs: number) {
-    if (!this.container) return;
     const players = (this.room.state as { players?: Map<string, PlayerLike> }).players;
     if (!players) return;
     const seen = new Set<string>();
@@ -97,10 +162,9 @@ export class PlayerRenderer {
       seen.add(id);
       let av = this.avatars.get(id);
       if (!av) {
-        av = new PlayerAvatar(this.scene, this.container!, id);
+        av = new PlayerAvatar(this.scene, this.lib, decodeLook(p.look), id, this.onAvatar);
         av.root.position.set(p.x, 0, p.z);
         this.avatars.set(id, av);
-        this.onAvatar?.(av.root);
       }
       const pos = av.root.position;
       let isMoving: boolean;
@@ -123,7 +187,6 @@ export class PlayerRenderer {
             pos.z = nz;
             av.root.rotation.y = Math.atan2(dx, dz) + HEADING_OFFSET;
           } else {
-            // mirror the server: stop at shores/cliffs instead of running in place
             this.localTarget = null;
             isMoving = false;
           }

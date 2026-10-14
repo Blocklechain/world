@@ -1,11 +1,12 @@
-"""Modular low-poly base body, rigid-skinned to WORLD_RIG.
+"""Modular low-poly bodies, rigid-skinned to WORLD_RIG, parametric per
+race (human/elf/dwarf) and sex (m/f).
 
-Five part meshes (head, torso, arms, legs, feet) so armor can replace parts
-at runtime. Limbs are lofted octagonal tubes with taper; every vertex is
-100% weighted to exactly one bone (per-ring assignment), so the chunky
-flat-shaded look deforms cleanly with no weight painting.
+Five part meshes (head, torso, arms, legs, feet) so armor can replace parts.
+Limbs are lofted octagonal tubes; every vertex is 100% weighted to one bone.
+Faces are geometric: inset eyes, brow, nose, mouth, race-specific ears.
 
-Budget: <= 2,500 tris for the full humanoid (actual ~1,000).
+generate({"race": ..., "sex": ...}, seed) -> (rig, [parts]); deterministic.
+Budget: <= 2,500 tris per body (actual ~1,100).
 """
 import math
 
@@ -30,14 +31,10 @@ def _ring(bm, cx, cy, cz, rx, ry):
 
 
 def _bridge(bm, a, b):
-    faces = []
-    for i in range(N):
-        faces.append(bm.faces.new((a[i], a[(i + 1) % N], b[(i + 1) % N], b[i])))
-    return faces
+    return [bm.faces.new((a[i], a[(i + 1) % N], b[(i + 1) % N], b[i])) for i in range(N)]
 
 
 def _tube(bm, deform, points, cap_bottom=True, cap_top=True):
-    """points: [(cx, cy, cz, rx, ry, group_index)]. Lofted octagonal tube."""
     rings = []
     faces = []
     for cx, cy, cz, rx, ry, gi in points:
@@ -65,7 +62,10 @@ def _box(bm, deform, gi, center, size):
 
 class _Part:
     def __init__(self, name, rig):
-        self.obj = bpy.data.objects.new(f"body_{name}", bpy.data.meshes.new(f"body_{name}"))
+        old = bpy.data.objects.get(name)
+        if old:
+            bpy.data.objects.remove(old, do_unlink=True)
+        self.obj = bpy.data.objects.new(name, bpy.data.meshes.new(name))
         bpy.context.collection.objects.link(self.obj)
         self.bm = bmesh.new()
         self.deform = self.bm.verts.layers.deform.verify()
@@ -92,133 +92,162 @@ class _Part:
         return self.obj
 
 
-def _build_head(rig):
-    p = _Part("head", rig)
-    gi = p.g("head")
-    gn = p.g("neck")
-    # neck stub + lofted skull: jaw -> cheeks -> skull -> crown
-    p.paint(_tube(p.bm, p.deform, [
-        (0, 0, 1.42, 0.055, 0.06, gn),
-        (0, 0, 1.52, 0.055, 0.06, gi),
-    ]), "bone", 0.55)
-    p.paint(_tube(p.bm, p.deform, [
-        (0, 0.005, 1.52, 0.075, 0.082, gi),
-        (0, 0.0, 1.565, 0.098, 0.105, gi),
-        (0, 0.0, 1.66, 0.108, 0.115, gi),
-        (0, 0.005, 1.73, 0.095, 0.10, gi),
-    ], cap_bottom=True, cap_top=True), "bone", 0.72)
-    # nose wedge on the face (-Y is forward)
-    p.paint(_box(p.bm, p.deform, gi, (0, -0.115, 1.615), (0.035, 0.035, 0.05)), "bone", 0.80)
-    return p.done()
+def _build_head(rig, p, k, prefix):
+    part = _Part(f"{prefix}_head", rig)
+    gi = part.g("head")
+    gn = part.g("neck")
+    hs = p["head"]
+    skin = (p["skin_row"], p["skin_t"])
+    z0 = k["head0"]
+
+    # neck + lofted skull
+    part.paint(_tube(part.bm, part.deform, [
+        (0, 0, k["neck0"], 0.055 * hs, 0.06 * hs, gn),
+        (0, 0, z0 + 0.02, 0.055 * hs, 0.06 * hs, gi),
+    ]), *skin)
+    jaw_z = z0 + 0.02
+    part.paint(_tube(part.bm, part.deform, [
+        (0, 0.005, jaw_z, 0.075 * hs, 0.082 * hs, gi),
+        (0, 0.0, jaw_z + 0.045, 0.098 * hs, 0.105 * hs, gi),
+        (0, 0.0, jaw_z + 0.14, 0.108 * hs, 0.115 * hs, gi),
+        (0, 0.005, jaw_z + 0.21, 0.095 * hs, 0.10 * hs, gi),
+    ]), *skin)
+
+    face_y = -0.112 * hs
+    eye_z = jaw_z + 0.125
+    # brow ridge
+    part.paint(_box(part.bm, part.deform, gi, (0, face_y, eye_z + 0.035), (0.135 * hs, 0.02, 0.022)), p["skin_row"], p["skin_t"] - 0.12)
+    # eyes: dark inset blocks
+    for sx in (-0.045, 0.045):
+        part.paint(_box(part.bm, part.deform, gi, (sx * hs, face_y - 0.004, eye_z), (0.034 * hs, 0.012, 0.02)), "grip", 0.12)
+    # nose
+    part.paint(_box(part.bm, part.deform, gi, (0, face_y - 0.016 * p["nose"], eye_z - 0.045), (0.034 * hs, 0.036 * p["nose"], 0.05)), *skin)
+    # mouth: thin dark strip
+    part.paint(_box(part.bm, part.deform, gi, (0, face_y - 0.002, jaw_z + 0.038), (0.05 * hs, 0.01, 0.012)), p["skin_row"], p["skin_t"] - 0.28)
+    # ears
+    ear_z = eye_z - 0.01
+    if p["ear"] == "point":
+        for sx in (-1, 1):
+            b = [part.bm.verts.new((sx * 0.1 * hs, y, ear_z + dz)) for y, dz in ((-0.02, -0.02), (0.02, -0.02), (0.0, 0.02))]
+            tip = part.bm.verts.new((sx * 0.16 * hs, 0.035, ear_z + 0.045))
+            for v in b + [tip]:
+                v[part.deform][gi] = 1.0
+            fs = [part.bm.faces.new((b[0], b[1], tip)), part.bm.faces.new((b[1], b[2], tip)), part.bm.faces.new((b[2], b[0], tip))]
+            part.paint(fs, *skin)
+    else:
+        for sx in (-1, 1):
+            part.paint(_box(part.bm, part.deform, gi, (sx * 0.108 * hs, 0.004, ear_z), (0.018, 0.03, 0.045 * hs)), *skin)
+    return part.done()
 
 
-def _build_torso(rig):
-    p = _Part("torso", rig)
-    hips, spine, chest = p.g("hips"), p.g("spine"), p.g("chest")
-    p.paint(_tube(p.bm, p.deform, [
-        (0, 0, 0.92, 0.155, 0.105, hips),
-        (0, 0, 1.00, 0.145, 0.100, hips),
-        (0, 0, 1.10, 0.125, 0.092, spine),
-        (0, 0, 1.22, 0.150, 0.100, chest),
-        (0, 0, 1.345, 0.175, 0.108, chest),
-        (0, 0, 1.425, 0.150, 0.095, chest),
+def _build_torso(rig, p, k, sex, prefix):
+    part = _Part(f"{prefix}_torso", rig)
+    hips, spine, chest = part.g("hips"), part.g("spine"), part.g("chest")
+    tw = p["torso_w"]
+    hip_w = 0.155 * p["hip"]
+    sh_w = 0.175 * p["shoulder"]
+    waist = 0.125 * tw * (0.88 if sex == "f" else 1.0)
+    bust = 0.155 * tw * (1.06 if sex == "f" else 0.97)
+    part.paint(_tube(part.bm, part.deform, [
+        (0, 0, k["hip_h"] - 0.02, hip_w, 0.105 * tw, hips),
+        (0, 0, k["hip_h"] + 0.06, hip_w * 0.95, 0.100 * tw, hips),
+        (0, 0, k["spine0"] + 0.05, waist, 0.092 * tw, spine),
+        (0, 0, k["chest0"], bust, 0.105 * tw, chest),
+        (0, -0.005 if sex == "f" else 0, k["chest0"] + 0.12, sh_w, 0.108 * tw, chest),
+        (0, 0, k["neck0"] + 0.005, sh_w * 0.85, 0.095 * tw, chest),
     ]), "cloth", 0.52)
     # belt
-    p.paint(_tube(p.bm, p.deform, [
-        (0, 0, 0.90, 0.160, 0.110, hips),
-        (0, 0, 0.955, 0.160, 0.110, hips),
+    part.paint(_tube(part.bm, part.deform, [
+        (0, 0, k["hip_h"] - 0.035, hip_w * 1.03, 0.11 * tw, hips),
+        (0, 0, k["hip_h"] + 0.015, hip_w * 1.03, 0.11 * tw, hips),
     ]), "leather", 0.35)
-    return p.done()
+    return part.done()
 
 
-def _arm(p, side):
+def _arm(part, p, k, side):
     s = 1 if side == "L" else -1
-    sh, up, fo, ha = (p.g(f"{b}.{side}") for b in ("shoulder", "upper_arm", "forearm", "hand"))
-    # shoulder pad
-    p.paint(_tube(p.bm, p.deform, [
-        (s * 0.175, 0, 1.315, 0.055, 0.062, sh),
-        (s * 0.172, 0, 1.38, 0.075, 0.082, sh),
-        (s * 0.165, 0, 1.43, 0.045, 0.055, sh),
+    sh, up, fo, ha = (part.g(f"{b}.{side}") for b in ("shoulder", "upper_arm", "forearm", "hand"))
+    w = p["limb_w"]
+    ax = k["arm_x"]
+    part.paint(_tube(part.bm, part.deform, [
+        (s * (ax + 0.012), 0, k["arm_top"] - 0.065, 0.055 * w, 0.062 * w, sh),
+        (s * (ax + 0.008), 0, k["arm_top"] + 0.005, 0.075 * w, 0.082 * w, sh),
+        (s * ax, 0, k["arm_top"] + 0.05, 0.045 * w, 0.055 * w, sh),
     ]), "cloth", 0.66)
-    # upper arm + forearm with elbow taper
-    p.paint(_tube(p.bm, p.deform, [
-        (s * 0.165, 0, 1.33, 0.050, 0.055, up),
-        (s * 0.162, 0, 1.20, 0.046, 0.050, up),
-        (s * 0.160, 0, 1.12, 0.042, 0.046, up),
+    part.paint(_tube(part.bm, part.deform, [
+        (s * ax, 0, k["arm_top"] - 0.05, 0.050 * w, 0.055 * w, up),
+        (s * ax, 0, (k["arm_top"] + k["elbow"]) / 2, 0.046 * w, 0.050 * w, up),
+        (s * ax, 0, k["elbow"], 0.042 * w, 0.046 * w, up),
     ]), "cloth", 0.47)
-    p.paint(_tube(p.bm, p.deform, [
-        (s * 0.160, 0, 1.12, 0.040, 0.044, fo),
-        (s * 0.160, 0, 1.00, 0.036, 0.040, fo),
-        (s * 0.160, 0, 0.90, 0.030, 0.034, fo),
-    ]), "bone", 0.62)
-    # mitt hand
-    p.paint(_tube(p.bm, p.deform, [
-        (s * 0.160, 0, 0.90, 0.034, 0.042, ha),
-        (s * 0.160, -0.005, 0.83, 0.036, 0.046, ha),
-        (s * 0.158, -0.008, 0.77, 0.026, 0.034, ha),
-    ]), "bone", 0.52)
+    part.paint(_tube(part.bm, part.deform, [
+        (s * ax, 0, k["elbow"], 0.040 * w, 0.044 * w, fo),
+        (s * ax, 0, (k["elbow"] + k["wrist"]) / 2, 0.036 * w, 0.040 * w, fo),
+        (s * ax, 0, k["wrist"] + 0.01, 0.030 * w, 0.034 * w, fo),
+    ]), p["skin_row"], p["skin_t"])
+    part.paint(_tube(part.bm, part.deform, [
+        (s * ax, 0, k["wrist"] + 0.01, 0.034 * w, 0.042 * w, ha),
+        (s * ax, -0.005, (k["wrist"] + k["hand_end"]) / 2, 0.036 * w, 0.046 * w, ha),
+        (s * (ax - 0.002), -0.008, k["hand_end"] + 0.015, 0.026 * w, 0.034 * w, ha),
+    ]), p["skin_row"], p["skin_t"] - 0.07)
 
 
-def _build_arms(rig):
-    p = _Part("arms", rig)
-    _arm(p, "L")
-    _arm(p, "R")
-    return p.done()
+def _build_arms(rig, p, k, prefix):
+    part = _Part(f"{prefix}_arms", rig)
+    _arm(part, p, k, "L")
+    _arm(part, p, k, "R")
+    return part.done()
 
 
-def _leg(p, side):
-    s = 1 if side == "L" else -1
-    th, sn = p.g(f"thigh.{side}"), p.g(f"shin.{side}")
-    p.paint(_tube(p.bm, p.deform, [
-        (s * 0.09, 0, 0.93, 0.068, 0.075, th),
-        (s * 0.09, 0, 0.72, 0.060, 0.066, th),
-        (s * 0.09, 0, 0.52, 0.050, 0.055, th),
-    ]), "leather", 0.50)
-    p.paint(_tube(p.bm, p.deform, [
-        (s * 0.09, 0, 0.52, 0.048, 0.053, sn),
-        (s * 0.09, 0, 0.30, 0.042, 0.047, sn),
-        (s * 0.09, 0.005, 0.12, 0.038, 0.042, sn),
-    ]), "leather", 0.40)
+def _build_legs(rig, p, k, prefix):
+    part = _Part(f"{prefix}_legs", rig)
+    w = p["limb_w"]
+    tx = k["thigh_x"]
+    for side, s in (("L", 1), ("R", -1)):
+        th, sn = part.g(f"thigh.{side}"), part.g(f"shin.{side}")
+        part.paint(_tube(part.bm, part.deform, [
+            (s * tx, 0, k["hip_h"] + 0.01, 0.068 * w, 0.075 * w, th),
+            (s * tx, 0, (k["hip_h"] + k["knee"]) / 2, 0.060 * w, 0.066 * w, th),
+            (s * tx, 0, k["knee"], 0.050 * w, 0.055 * w, th),
+        ]), "leather", 0.50)
+        part.paint(_tube(part.bm, part.deform, [
+            (s * tx, 0, k["knee"], 0.048 * w, 0.053 * w, sn),
+            (s * tx, 0, (k["knee"] + k["ankle"]) / 2, 0.042 * w, 0.047 * w, sn),
+            (s * tx, 0.005, k["ankle"] + 0.03, 0.038 * w, 0.042 * w, sn),
+        ]), "leather", 0.40)
+    return part.done()
 
 
-def _build_legs(rig):
-    p = _Part("legs", rig)
-    _leg(p, "L")
-    _leg(p, "R")
-    return p.done()
+def _build_feet(rig, p, k, prefix):
+    part = _Part(f"{prefix}_feet", rig)
+    w = p["limb_w"]
+    tx = k["thigh_x"]
+    for side, s in (("L", 1), ("R", -1)):
+        gi = part.g(f"foot.{side}")
+        part.paint(_tube(part.bm, part.deform, [
+            (s * tx, 0.005, k["ankle"] + 0.05, 0.046 * w, 0.050 * w, gi),
+            (s * tx, 0.005, 0.07, 0.052 * w, 0.058 * w, gi),
+        ]), "grip", 0.55)
+        part.paint(_tube(part.bm, part.deform, [
+            (s * tx, 0.01, 0.045, 0.050 * w, 0.055 * w, gi),
+            (s * tx, -0.06, 0.040, 0.048 * w, 0.062 * w, gi),
+            (s * tx, -0.13, 0.035, 0.040 * w, 0.052 * w, gi),
+        ]), "grip", 0.45)
+    return part.done()
 
 
-def _foot(p, side):
-    s = 1 if side == "L" else -1
-    gi = p.g(f"foot.{side}")
-    # boot cuff + lofted toe (forward is -Y)
-    p.paint(_tube(p.bm, p.deform, [
-        (s * 0.09, 0.005, 0.14, 0.046, 0.050, gi),
-        (s * 0.09, 0.005, 0.07, 0.052, 0.058, gi),
-    ]), "grip", 0.55)
-    p.paint(_tube(p.bm, p.deform, [
-        (s * 0.09, 0.01, 0.045, 0.050, 0.055, gi),
-        (s * 0.09, -0.06, 0.040, 0.048, 0.062, gi),
-        (s * 0.09, -0.13, 0.035, 0.040, 0.052, gi),
-    ]), "grip", 0.45)
-    return gi
-
-
-def _build_feet(rig):
-    p = _Part("feet", rig)
-    _foot(p, "L")
-    _foot(p, "R")
-    return p.done()
-
-
-def generate(params: dict, seed: int):
-    """Build WORLD_RIG + all body parts. Returns (rig, [parts])."""
-    rig = world_rig.build_rig()
+def generate(params: dict, seed: int = 0):
+    """Build a race/sex body on its own WORLD_RIG. Returns (rig, [parts])."""
+    race = params.get("race", "human")
+    sex = params.get("sex", "m")
+    p = world_rig.proportions(race, sex)
+    k = world_rig.key_heights(p)
+    prefix = f"body_{race}_{sex}"
+    rig = world_rig.build_rig(p, name=f"RIG_{race}_{sex}")
     parts = [
-        _build_head(rig),
-        _build_torso(rig),
-        _build_arms(rig),
-        _build_legs(rig),
-        _build_feet(rig),
+        _build_head(rig, p, k, prefix),
+        _build_torso(rig, p, k, sex, prefix),
+        _build_arms(rig, p, k, prefix),
+        _build_legs(rig, p, k, prefix),
+        _build_feet(rig, p, k, prefix),
     ]
     return rig, parts

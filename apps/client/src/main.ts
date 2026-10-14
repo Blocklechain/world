@@ -4,7 +4,7 @@ import { PlayerRenderer } from "./players";
 import { ScatterManager } from "./scatter";
 import { createScene } from "./scene";
 import { TerrainManager } from "./terrain";
-import { mountAuth, mountHud, mountStatus } from "./ui";
+import { mountAuth, mountCreate, mountHud, mountStatus } from "./ui";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const hudEl = document.getElementById("hud") as HTMLElement;
@@ -22,9 +22,22 @@ function storedAuth(): AuthResult | null {
 
 const existing = storedAuth();
 if (existing) {
-  void start(existing);
+  void gate(existing);
 } else {
-  mountAuth(hudEl, (auth) => void start(auth));
+  mountAuth(hudEl, (auth) => (auth ? gate(auth) : void start(null)));
+}
+
+/** New accounts design their hero before entering the world. */
+function gate(auth: AuthResult) {
+  if (auth.hasAppearance === false) {
+    mountCreate(hudEl, auth, () => {
+      auth.hasAppearance = true;
+      localStorage.setItem("world:auth", JSON.stringify(auth));
+      void start(auth);
+    });
+  } else {
+    void start(auth);
+  }
 }
 
 async function start(auth: AuthResult | null) {

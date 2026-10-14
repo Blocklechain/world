@@ -115,6 +115,11 @@ export interface AuthResult {
   token: string;
   address: string;
   name: string;
+  hasAppearance?: boolean;
+}
+
+export async function apiAppearance(token: string, appearance: unknown): Promise<void> {
+  await apiPost("/api/auth/appearance", { token, appearance });
 }
 
 export async function apiRegister(email: string, password: string, name: string): Promise<AuthResult> {

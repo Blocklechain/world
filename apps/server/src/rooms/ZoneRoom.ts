@@ -2,6 +2,8 @@ import { Room, type Client } from "@colyseus/core";
 import { MapSchema, Schema, type } from "@colyseus/schema";
 import {
   GATHER_TICK_MS,
+  encodeLook,
+  randomLook,
   ITEMS,
   NODE_SPECIES,
   SPAWN,
@@ -37,8 +39,10 @@ export class PlayerState extends Schema {
   @type("float32") tx = 0;
   @type("float32") tz = 0;
   @type("boolean") moving = false;
-  /** idle | chop | mine | gather */
+  /** idle | chop | mine | swim */
   @type("string") action = "idle";
+  /** race:sex:hair:hairColor:beard */
+  @type("string") look = "";
 }
 
 export class ZoneState extends Schema {
@@ -187,6 +191,7 @@ export class ZoneRoom extends Room<ZoneState> {
 
     const p = new PlayerState();
     p.name = name;
+    p.look = encodeLook(account?.appearance ?? randomLook(address));
     p.x = profile.pos?.x ?? SPAWN.x + (Math.random() - 0.5) * 8;
     p.z = profile.pos?.z ?? SPAWN.z + (Math.random() - 0.5) * 8;
     if (!isWalkable(p.x, p.z)) {

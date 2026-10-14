@@ -31,7 +31,7 @@ api.post("/auth/register", async (req, reply) => {
   const res = accounts.register(email, password, name);
   if (!res.ok) return reply.code(400).send({ error: res.error });
   const token = auth.createSession(res.account.address);
-  return { token, address: res.account.address, name: res.account.name };
+  return { token, address: res.account.address, name: res.account.name, hasAppearance: false };
 });
 
 api.post("/auth/login", async (req, reply) => {
@@ -42,7 +42,17 @@ api.post("/auth/login", async (req, reply) => {
   const account = accounts.login(email, password);
   if (!account) return reply.code(401).send({ error: "Wrong email or password." });
   const token = auth.createSession(account.address);
-  return { token, address: account.address, name: account.name };
+  return { token, address: account.address, name: account.name, hasAppearance: !!account.appearance };
+});
+
+api.post("/auth/appearance", async (req, reply) => {
+  const { token, appearance } = (req.body ?? {}) as Record<string, unknown>;
+  const address = auth.sessionAddress(token);
+  if (!address) return reply.code(401).send({ error: "no session" });
+  if (!accounts.setAppearance(address, appearance)) {
+    return reply.code(400).send({ error: "bad appearance" });
+  }
+  return { ok: true };
 });
 
 api.post("/auth/challenge", async (req, reply) => {

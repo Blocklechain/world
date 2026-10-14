@@ -4,6 +4,7 @@
  * WORLD_KEYSTORE_SECRET. JSON persistence for the greybox phase; Postgres
  * lands with the custody ledger.
  */
+import { validAppearance, type Appearance } from "@world/content";
 import {
   createCipheriv,
   createDecipheriv,
@@ -31,6 +32,7 @@ export interface Account {
   /** AES-256-GCM over the secret-key hex: iv.ct.tag (base64) */
   secretEnc: string;
   createdAt: number;
+  appearance?: Appearance;
 }
 
 const FILE = process.env.WORLD_DATA_DIR
@@ -112,6 +114,15 @@ export function login(email: string, password: string): Account | null {
   const stored = Buffer.from(a.passHash, "base64");
   if (hash.length !== stored.length || !timingSafeEqual(hash, stored)) return null;
   return a;
+}
+
+export function setAppearance(address: string, appearance: unknown): boolean {
+  if (!validAppearance(appearance)) return false;
+  const a = accountByAddress(address);
+  if (!a) return false;
+  a.appearance = appearance;
+  save();
+  return true;
 }
 
 export function accountByAddress(address: string): Account | null {
