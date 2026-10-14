@@ -52,6 +52,18 @@ def palette_image(category: str = "gear") -> bpy.types.Image:
     return img
 
 
+def mr_image(category: str = "gear") -> bpy.types.Image:
+    """Metallic/roughness atlas (G=rough, B=metal), baked by palette/pbr.py."""
+    name = f"mr_{category}"
+    img = bpy.data.images.get(name)
+    path = os.path.join(repo_root(), "assets", "out", "palettes", f"{category}_mr.png")
+    if img is None and os.path.exists(path):
+        img = bpy.data.images.load(path)
+        img.name = name
+        img.colorspace_settings.name = "Non-Color"
+    return img
+
+
 def palette_material(category: str = "gear") -> bpy.types.Material:
     name = f"WORLD_{category}"
     mat = bpy.data.materials.get(name)
@@ -62,10 +74,24 @@ def palette_material(category: str = "gear") -> bpy.types.Material:
     nt = mat.node_tree
     bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
     bsdf.inputs["Roughness"].default_value = 0.75
+
     tex = nt.nodes.new("ShaderNodeTexImage")
     tex.image = palette_image(category)
-    tex.location = (-320, 240)
+    tex.location = (-520, 240)
     nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+
+    # metallic/roughness atlas -> Separate Color -> Principled (glTF-canonical,
+    # so the exporter emits a metallicRoughnessTexture automatically)
+    mr = mr_image(category)
+    if mr is not None:
+        mtex = nt.nodes.new("ShaderNodeTexImage")
+        mtex.image = mr
+        mtex.location = (-520, -120)
+        sep = nt.nodes.new("ShaderNodeSeparateColor")
+        sep.location = (-240, -120)
+        nt.links.new(mtex.outputs["Color"], sep.inputs["Color"])
+        nt.links.new(sep.outputs["Green"], bsdf.inputs["Roughness"])
+        nt.links.new(sep.outputs["Blue"], bsdf.inputs["Metallic"])
     return mat
 
 

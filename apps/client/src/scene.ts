@@ -9,6 +9,8 @@ import { ParticleSystem } from "@babylonjs/core/Particles/particleSystem";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture";
 import { Color4 as BColor4 } from "@babylonjs/core/Maths/math.color";
+import { RawCubeTexture } from "@babylonjs/core/Materials/Textures/rawCubeTexture";
+import { Engine as BEngine } from "@babylonjs/core/Engines/engine";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3, Color4, Vector3 } from "@babylonjs/core/Maths/math";
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
@@ -31,9 +33,28 @@ export interface WorldScene {
 export function createScene(canvas: HTMLCanvasElement): WorldScene {
   const cave = activeMap().kind === "cave";
   const engine = new Engine(canvas, true, { adaptToDeviceRatio: false });
+  void cave;
   engine.setHardwareScalingLevel(1 / Math.min(window.devicePixelRatio, 2));
 
   const scene = new Scene(engine);
+
+  // tiny sky-tinted cube so PBR metals have something to reflect (no IBL file).
+  // faces order: +X -X +Y(sky) -Y(ground) +Z -Z
+  const sky0 = [150, 180, 220], horiz = [200, 205, 210], grnd = [96, 110, 86];
+  const faceRGBA = (rgb: number[]) => {
+    const d = new Uint8Array(4 * 4 * 4);
+    for (let i = 0; i < 16; i++) { d[i*4]=rgb[0]!; d[i*4+1]=rgb[1]!; d[i*4+2]=rgb[2]!; d[i*4+3]=255; }
+    return d;
+  };
+  const envTex = new RawCubeTexture(
+    scene,
+    [faceRGBA(horiz), faceRGBA(horiz), faceRGBA(sky0), faceRGBA(grnd), faceRGBA(horiz), faceRGBA(horiz)],
+    4,
+    BEngine.TEXTUREFORMAT_RGBA,
+    BEngine.TEXTURETYPE_UNSIGNED_BYTE,
+  );
+  scene.environmentTexture = cave ? null : envTex;
+  scene.environmentIntensity = 0.55;
   // warm late-afternoon light; fog melts terrain into the horizon band
   scene.clearColor = cave ? new Color4(0.02, 0.02, 0.03, 1) : new Color4(0.74, 0.8, 0.9, 1);
   scene.ambientColor = cave ? new Color3(0.1, 0.1, 0.14) : new Color3(0.3, 0.32, 0.35);

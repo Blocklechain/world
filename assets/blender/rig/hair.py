@@ -27,7 +27,7 @@ COLORS = {
     "grey": ("stone", 0.7),
 }
 
-R = 0.115  # canonical skull radius
+R = 0.135  # matches the sculpted skull radius so caps fully cover
 
 
 def _blob(bm, center, radius, squash, jitter, rng, subdiv=1):
